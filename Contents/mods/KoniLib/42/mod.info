@@ -1,5 +1,7 @@
 name=KoniLib
 id=KoniLib
-poster=poster.png
 description=Shared library for HaloServerMod suite.
-url=
+poster=poster.png
+icon=icon.png
+author=Konijima
+modversion=1.0.0
