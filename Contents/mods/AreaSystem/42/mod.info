@@ -6,3 +6,4 @@ versionMin=42.0
 author=Konijima
 modversion=1.0.0
 icon=icon.png
+require=KoniLib

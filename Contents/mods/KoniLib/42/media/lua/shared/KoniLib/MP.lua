@@ -1,12 +1,12 @@
-AreaSystem = AreaSystem or {}
-AreaSystem.MP = {}
+KoniLib = KoniLib or {}
+KoniLib.MP = {}
 
-local MP = AreaSystem.MP
+local MP = KoniLib.MP
 MP.Handlers = {}
 MP.Verbose = true -- Set to true for debugging
 
 function MP.Log(str)
-    if MP.Verbose then print("[AreaSystem.MP] " .. tostring(str)) end
+    if MP.Verbose then print("[KoniLib.MP] " .. tostring(str)) end
 end
 
 -- Call to register a handler for a command
