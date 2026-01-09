@@ -1,0 +1,8 @@
+name=Area System
+id=AreaSystem
+description=Admin tool to create and manage custom areas on the world map with server-side events.
+poster=poster.png
+versionMin=42.0
+author=Konijima
+modversion=1.0.0
+icon=icon.png
