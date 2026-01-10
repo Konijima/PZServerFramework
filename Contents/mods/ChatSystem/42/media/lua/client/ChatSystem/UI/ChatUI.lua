@@ -205,16 +205,19 @@ function ISCustomChat:formatMessage(message)
         line = "[" .. time .. "]"
     end
     
-    -- Channel tag [Channel]
-    local cr, cg, cb = color.r * 0.7, color.g * 0.7, color.b * 0.7
-    line = line .. " <SPACE> <RGB:" .. string.format("%.1f,%.1f,%.1f", cr, cg, cb) .. ">[" .. channelName .. "]"
-    
-    -- Author name
-    if message.isSystem then
-        line = line .. " <SPACE> <RGB:" .. string.format("%.1f,%.1f,%.1f", color.r, color.g, color.b) .. ">*" .. message.author .. ":"
-    else
-        line = line .. " <SPACE> <RGB:1,1,1>" .. message.author .. ":"
+    -- Handle special message types (emotes and system messages)
+    if message.metadata and message.metadata.isEmote then
+        -- Emote format: just the text (already formatted as "* Name action *")
+        line = line .. " <SPACE> <RGB:" .. string.format("%.1f,%.1f,%.1f", color.r, color.g, color.b) .. ">" .. message.text
+        return line
+    elseif message.isSystem then
+        -- System message: no author prefix, just the text
+        line = line .. " <SPACE> <RGB:" .. string.format("%.1f,%.1f,%.1f", color.r, color.g, color.b) .. ">" .. message.text
+        return line
     end
+    
+    -- Regular message: Author name
+    line = line .. " <SPACE> <RGB:1,1,1>" .. message.author .. ":"
     
     -- PM indicator
     if message.channel == ChatSystem.ChannelType.PRIVATE then
@@ -241,9 +244,14 @@ function ISCustomChat:rebuildText()
     local currentChannel = ChatSystem.Client.currentChannel
     local lines = {}
     
-    -- Filter messages by current channel
+    -- Filter messages by current channel (but always show global system messages)
     for _, message in ipairs(self.messages) do
-        if message.channel == currentChannel then
+        local showMessage = message.channel == currentChannel
+        -- Always show system messages from global channel (announcements, etc.)
+        if message.isSystem and message.channel == ChatSystem.ChannelType.GLOBAL then
+            showMessage = true
+        end
+        if showMessage then
             table.insert(lines, self:formatMessage(message))
         end
     end
@@ -347,6 +355,9 @@ end
 function ISCustomChat:focus()
     self:setVisible(true)
     ISCustomChat.focused = true
+    
+    -- Ensure text entry is visible and editable
+    self.textEntry:setVisible(true)
     self.textEntry:setEditable(true)
     self.textEntry:focus()
     self.textEntry:ignoreFirstInput()
@@ -358,6 +369,9 @@ function ISCustomChat:focus()
     self.fadeTimer = 0
     self.isFading = false
     self.backgroundColor.a = self.maxOpaque
+    
+    -- Update positions in case layout changed
+    self:updateLockState()
 end
 
 function ISCustomChat:unfocus()
@@ -365,6 +379,7 @@ function ISCustomChat:unfocus()
     self.textEntry:setText("")
     ISCustomChat.focused = false
     self.textEntry:setEditable(false)
+    -- Don't hide textEntry, just make it non-editable
     self.historyIndex = 0
     
     -- Stop typing indicator
@@ -617,8 +632,11 @@ function ISCustomChat:updateLockState()
         self:setResizable(true)
     end
     
-    -- Update text entry position
+    -- Update text entry position and size
+    self.textEntry:setX(padding)
     self.textEntry:setY(self.height - entryHeight - bottomPadding)
+    self.textEntry:setWidth(self.width - padding * 2)
+    self.textEntry:setHeight(entryHeight)
     
     -- Update chat panel height
     local th = self:titleBarHeight()

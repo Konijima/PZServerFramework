@@ -192,6 +192,17 @@ chatSocket:onServer("message", function(player, data, context, ack)
     
     print("[ChatSystem] Server: Received message from " .. tostring(username) .. " - channel: " .. tostring(channel) .. ", text: " .. tostring(text))
     
+    -- Check if this is a command (and not a channel command like /g, /l)
+    if ChatSystem.Commands and ChatSystem.Commands.Server and ChatSystem.Commands.Server.HandleMessageAsCommand then
+        if ChatSystem.Commands.Server.HandleMessageAsCommand(player, text) then
+            -- Was a command, don't process as chat
+            if ack then
+                ack({ success = true, wasCommand = true })
+            end
+            return
+        end
+    end
+    
     -- Create the message
     local message = ChatSystem.CreateMessage(channel, username, text, metadata)
     
