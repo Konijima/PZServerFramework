@@ -255,11 +255,7 @@ local function onDataChanged()
     end
 end
 
-if not Events.OnAreaSystemDataChanged then
-    LuaEventManager.AddEvent("OnAreaSystemDataChanged")
-end
-
-Events.OnAreaSystemDataChanged.Add(onDataChanged)
+AreaSystem.Events.OnDataChanged:Add(onDataChanged)
 
 -- Constructor
 function ISAreaManager:new(x, y, width, height)

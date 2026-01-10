@@ -1,10 +1,6 @@
 require "AreaSystem/Definitions"
 -- require "KoniLib/MP" -- Implicit
 
-if not Events.OnAreaSystemDataChanged then
-    LuaEventManager.AddEvent("OnAreaSystemDataChanged")
-end
-
 AreaSystem.Client = {}
 local Client = AreaSystem.Client
 local MP = KoniLib.MP
@@ -22,20 +18,20 @@ Client.Data = {
 MP.Register("AreaSystem", "SyncData", function(player, args)
     print("[AreaSystem] Client: Received SyncData")
     Client.Data = args -- Replace entire state
-    triggerEvent("OnAreaSystemDataChanged")
+    AreaSystem.Events.OnDataChanged:Trigger()
 end)
 
 -- Area Updates
 MP.Register("AreaSystem", "AreaAdded", function(player, args)
     Client.Data.Areas[args.id] = args
-    triggerEvent("OnAreaSystemDataChanged")
+    AreaSystem.Events.OnDataChanged:Trigger()
 end)
 
 MP.Register("AreaSystem", "AreaUpdated", function(player, args)
     -- If we have an open UI editing this, we might want to update it?
     -- For now, just update the data store.
     Client.Data.Areas[args.id] = args
-    triggerEvent("OnAreaSystemDataChanged")
+    AreaSystem.Events.OnDataChanged:Trigger()
 end)
 
 MP.Register("AreaSystem", "AreaRemoved", function(player, args)
@@ -47,23 +43,23 @@ MP.Register("AreaSystem", "AreaRemoved", function(player, args)
              Client.Data.Shapes[k] = nil
         end
     end
-    triggerEvent("OnAreaSystemDataChanged")
+    AreaSystem.Events.OnDataChanged:Trigger()
 end)
 
 -- Shape Updates
 MP.Register("AreaSystem", "ShapeAdded", function(player, args)
     Client.Data.Shapes[args.id] = args
-    triggerEvent("OnAreaSystemDataChanged")
+    AreaSystem.Events.OnDataChanged:Trigger()
 end)
 
 MP.Register("AreaSystem", "ShapeUpdated", function(player, args)
     Client.Data.Shapes[args.id] = args
-    triggerEvent("OnAreaSystemDataChanged")
+    AreaSystem.Events.OnDataChanged:Trigger()
 end)
 
 MP.Register("AreaSystem", "ShapeRemoved", function(player, args)
     Client.Data.Shapes[args.id] = nil
-    triggerEvent("OnAreaSystemDataChanged")
+    AreaSystem.Events.OnDataChanged:Trigger()
 end)
 
 -- ==========================================================
@@ -99,9 +95,12 @@ end
 -- Initialization & Utility
 -- ==========================================================
 
-function Client.OnInitWorld()
-    print("[AreaSystem] Client: Init - Requesting Sync...")
-    MP.Send(getPlayer(), "AreaSystem", "RequestSync", {})
+function Client.OnTick()
+    if getPlayer() then
+        Events.OnTick.Remove(Client.OnTick)
+        print("[AreaSystem] Client: Init - Requesting Sync...")
+        MP.Send(getPlayer(), "AreaSystem", "RequestSync", {})
+    end
 end
 
 function Client.CheckOverlap(x1, y1, x2, y2, ignoreShapeId)
@@ -119,7 +118,7 @@ function Client.CheckOverlap(x1, y1, x2, y2, ignoreShapeId)
     return false
 end
 
-Events.OnInitWorld.Add(Client.OnInitWorld)
+Events.OnTick.Add(Client.OnTick)
 
 print("[AreaSystem] AreaSystem: Client Core Loaded (Network Mode)")
 

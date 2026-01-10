@@ -24,5 +24,14 @@ function AreaSystem.CreateShape(areaId, x, y, x2, y2)
     }
 end
 
+-- Events
+AreaSystem.Events = {}
+if KoniLib and KoniLib.Event then
+    AreaSystem.Events.OnDataChanged = KoniLib.Event.new("OnAreaSystemDataChanged")
+else
+    -- Fallback for safety if KoniLib isn't loaded yet
+    print("[AreaSystem] Error: KoniLib.Event not found!")
+end
+
 print("[AreaSystem] Shared Definitions Loaded")
 
