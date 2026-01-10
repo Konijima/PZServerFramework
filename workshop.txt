@@ -1,5 +1,6 @@
 version=1
-title=Konijima Server Framewor
-description=
-tags=Server,Mod,Framework,Map
-visibility=private
+id=3642492822
+title=PZ Server Framework
+description=Test
+tags=Build 42
+visibility=unlisted

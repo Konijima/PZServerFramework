@@ -95,11 +95,16 @@ end
 -- Initialization & Utility
 -- ==========================================================
 
-function Client.OnTick()
-    if getPlayer() then
-        Events.OnTick.Remove(Client.OnTick)
-        print("[AreaSystem] Client: Init - Requesting Sync...")
-        MP.Send(getPlayer(), "AreaSystem", "RequestSync", {})
+function Client.OnInitWorld(playerIndex)
+    if not playerIndex then playerIndex = 0 end -- Safety
+    local player = getSpecificPlayer(playerIndex)
+    
+    -- Safety check: OnCreatePlayer might fire before the player object is fully ready (e.g. "Bob")
+    -- We can verify existence or username
+    if player then
+        print("[AreaSystem] Client: OnCreatePlayer("..tostring(playerIndex)..") - Player: " .. tostring(player:getUsername()))
+        -- If this is a respawn, request sync. 
+        MP.Send(player, "AreaSystem", "RequestSync", {})
     end
 end
 
@@ -118,7 +123,7 @@ function Client.CheckOverlap(x1, y1, x2, y2, ignoreShapeId)
     return false
 end
 
-Events.OnTick.Add(Client.OnTick)
+Events.OnCreatePlayer.Add(Client.OnInitWorld)
 
 print("[AreaSystem] AreaSystem: Client Core Loaded (Network Mode)")
 
