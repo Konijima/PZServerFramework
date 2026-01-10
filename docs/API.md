@@ -194,6 +194,8 @@ MyEvent:Trigger("Bob")
 
 KoniLib standardizes player lifecycle events to fix common bugs regarding "When is it safe to send packets?" or "How do I distinguish a respawn from a login?".
 
+> **Full documentation:** See [EventsAPI.md](EventsAPI.md) for detailed explanations, flow diagrams, and best practices.
+
 ### `KoniLib.Events.OnNetworkAvailable`
 **Context**: Client Only  
 **Trigger**: Fires on the **First Valid Tick** where the local player object exists.  

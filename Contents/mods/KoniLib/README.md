@@ -20,7 +20,7 @@ The `KoniLib.Socket` module provides a **Socket.io-inspired** networking abstrac
 - **Acknowledgments** - Request/response pattern with callbacks
 - **Broadcasting** - Flexible emission patterns (`to`, `broadcast`, `except`)
 
-See [SocketAPI.md](SocketAPI.md) for full documentation.
+See [/docs/SocketAPI.md](/docs/SocketAPI.md) for full documentation.
 
 ### 3. Event System Abstraction
 The `KoniLib.Event` module provides an object-oriented wrapper around Project Zomboid's native event system. It simplifies the registration, subscription, and triggering of custom events.
@@ -131,6 +131,8 @@ end)
 
 ### 4. Custom Lifecycle Events
 KoniLib introduces a set of standardized events to handle player lifecycle and networking reliably, fixing common issues where vanilla events fire too early or inconsistently across MP/SP.
+
+See [/docs/EventsAPI.md](/docs/EventsAPI.md) for full documentation with flow diagrams and examples.
 
 #### Client-Side Events
 | Event | Arguments | Description |
