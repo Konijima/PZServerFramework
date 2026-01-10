@@ -4,8 +4,11 @@
 
 KoniLib is a core utility library for Project Zomboid modding, designed to abstract away the complexities of:
 1.  **Multiplayer Networking**: Handling Client/Server communication and Singleplayer compatibility transparently.
-2.  **Custom Events**: Creating, managing, and firing custom Lua events with type safety.
-3.  **Lifecycle Management**: Solving common initialization order problems (e.g., handling player creation, respawns, and initial network sync).
+2.  **Socket.io-like Networking**: Namespaces, rooms, middleware, acknowledgments, and broadcasting.
+3.  **Custom Events**: Creating, managing, and firing custom Lua events with type safety.
+4.  **Lifecycle Management**: Solving common initialization order problems (e.g., handling player creation, respawns, and initial network sync).
+
+> **Note:** For comprehensive Socket API documentation, see [SocketAPI.md](SocketAPI.md).
 
 ---
 
@@ -71,7 +74,85 @@ KoniLib.MP.Send(nil, "StatsMod", "GlobalAnnouncement", { message = "Server Resta
 
 ---
 
-## 2. Event System
+## 2. Socket System (Socket.io-like)
+**Module:** `KoniLib.Socket`  
+**Files:** `shared/KoniLib/Socket.lua`, `client/KoniLib/SocketClient.lua`, `server/KoniLib/SocketServer.lua`
+
+A Socket.io-inspired networking abstraction providing namespaces, rooms, middleware, and acknowledgments.
+
+> **Full documentation:** See [SocketAPI.md](SocketAPI.md)
+
+### Quick Reference
+
+#### Creating a Socket
+```lua
+-- Get or create a namespace
+local chat = KoniLib.Socket.of("/chat")
+
+-- With auth data (client)
+local chat = KoniLib.Socket.of("/chat", { auth = { token = "secret" } })
+```
+
+#### Server: Middleware
+```lua
+-- Authentication
+chat:use("connection", function(player, auth, context, next, reject)
+    if not isValidToken(auth.token) then
+        return reject("Invalid token")
+    end
+    next({ role = "user", verified = true })
+end)
+
+-- Room access control
+chat:use("join", function(player, room, context, next, reject)
+    if room == "admin" and context.role ~= "admin" then
+        return reject("Admin only")
+    end
+    next()
+end)
+```
+
+#### Server: Events & Rooms
+```lua
+chat:on("connect", function(player, context)
+    chat:join(player, "global")
+end)
+
+chat:on("message", function(player, data, context, ack)
+    chat:to(data.room):emit("message", {
+        from = player:getUsername(),
+        text = data.text
+    })
+    if ack then ack({ sent = true }) end
+end)
+```
+
+#### Server: Broadcasting
+```lua
+chat:emit("alert", data)                    -- To all
+chat:emit("alert", data, player)            -- To specific player
+chat:to("room"):emit("alert", data)         -- To room
+chat:broadcast(player):emit("alert", data)  -- To all except player
+```
+
+#### Client: Events & Emission
+```lua
+chat:on("connect", function() print("Connected!") end)
+chat:on("message", function(data) print(data.text) end)
+
+-- Emit with acknowledgment
+chat:emit("message", { text = "Hi" }, function(response)
+    print("Sent: " .. tostring(response.sent))
+end)
+
+-- Room operations
+chat:joinRoom("global")
+chat:leaveRoom("global")
+```
+
+---
+
+## 3. Event System
 **Module:** `KoniLib.Event`  
 **File:** `shared/KoniLib/Event.lua`
 
@@ -107,7 +188,7 @@ MyEvent:Trigger("Bob")
 
 ---
 
-## 3. Lifecycle & Lifecycle Events
+## 4. Lifecycle & Lifecycle Events
 **Module:** `KoniLib.Events`  
 **Files:** `shared/KoniLib/CustomEvents.lua`, `client/KoniLib/CustomEventsClient.lua`, `server/KoniLib/CustomEventsServer.lua`
 
@@ -187,7 +268,7 @@ end)
 
 ---
 
-## 4. Full Workflow Example
+## 5. Full Workflow Example
 
 Here is how you would setup a mod that syncs a "Mana" stat.
 

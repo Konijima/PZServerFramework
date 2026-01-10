@@ -12,7 +12,17 @@ The `KoniLib.MP` module unifies networking logic, allowing developers to write c
 
 It removes the need to manually check `isClient()` or `isServer()` for every action.
 
-### 2. Event System Abstraction
+### 2. Socket.io-like Networking (NEW)
+The `KoniLib.Socket` module provides a **Socket.io-inspired** networking abstraction with:
+- **Namespaces** - Isolated communication channels (e.g., `/chat`, `/trade`)
+- **Rooms** - Group players for targeted messaging
+- **Middleware** - Authentication, validation, and hooks
+- **Acknowledgments** - Request/response pattern with callbacks
+- **Broadcasting** - Flexible emission patterns (`to`, `broadcast`, `except`)
+
+See [SocketAPI.md](SocketAPI.md) for full documentation.
+
+### 3. Event System Abstraction
 The `KoniLib.Event` module provides an object-oriented wrapper around Project Zomboid's native event system. It simplifies the registration, subscription, and triggering of custom events.
 
 **Key benefits:**
@@ -78,7 +88,48 @@ Fire the event using the `:Trigger()` method.
 MyModEvents.OnCustomAction:Trigger("Some Data")
 ```
 
-### 3. Custom Lifecycle Events
+### Socket.io-like Networking
+
+#### Quick Example
+
+```lua
+-- ============ SERVER ============
+local chat = KoniLib.Socket.of("/chat")
+
+-- Authentication middleware
+chat:use("connection", function(player, auth, context, next, reject)
+    if not auth.token then
+        return reject("Token required")
+    end
+    next({ verified = true })
+end)
+
+-- Handle messages
+chat:on("message", function(player, data, context, ack)
+    chat:to("global"):emit("message", {
+        from = player:getUsername(),
+        text = data.text
+    })
+    if ack then ack({ sent = true }) end
+end)
+
+-- ============ CLIENT ============
+local chat = KoniLib.Socket.of("/chat", { auth = { token = "secret" } })
+
+chat:on("connect", function()
+    chat:joinRoom("global")
+end)
+
+chat:on("message", function(data)
+    print("[" .. data.from .. "]: " .. data.text)
+end)
+
+chat:emit("message", { text = "Hello!" }, function(response)
+    print("Delivered: " .. tostring(response.sent))
+end)
+```
+
+### 4. Custom Lifecycle Events
 KoniLib introduces a set of standardized events to handle player lifecycle and networking reliably, fixing common issues where vanilla events fire too early or inconsistently across MP/SP.
 
 #### Client-Side Events
