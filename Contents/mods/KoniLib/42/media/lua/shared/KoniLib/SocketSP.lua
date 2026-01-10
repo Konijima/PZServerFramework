@@ -133,12 +133,24 @@ end
 ---@param callback function
 ---@return SocketSP
 function SocketSP:on(event, callback)
-    -- Determine if this is a server or client handler based on callback signature
-    -- For SP, we use the same method for both
+    -- Client handlers receive (data)
     if not self.clientHandlers[event] then
         self.clientHandlers[event] = {}
     end
     table.insert(self.clientHandlers[event], callback)
+    return self
+end
+
+---Register server-side event handler (for handling client emissions)
+---Server handlers receive (player, data, context, ack)
+---@param event string
+---@param callback function
+---@return SocketSP
+function SocketSP:onServer(event, callback)
+    if not self.serverHandlers[event] then
+        self.serverHandlers[event] = {}
+    end
+    table.insert(self.serverHandlers[event], callback)
     return self
 end
 
@@ -151,6 +163,18 @@ function SocketSP:once(event, callback)
         self.clientOnceHandlers[event] = {}
     end
     table.insert(self.clientOnceHandlers[event], callback)
+    return self
+end
+
+---Register one-time server handler
+---@param event string
+---@param callback function
+---@return SocketSP
+function SocketSP:onceServer(event, callback)
+    if not self.serverOnceHandlers[event] then
+        self.serverOnceHandlers[event] = {}
+    end
+    table.insert(self.serverOnceHandlers[event], callback)
     return self
 end
 
@@ -171,6 +195,27 @@ function SocketSP:off(event, callback)
     else
         self.clientHandlers[event] = nil
         self.clientOnceHandlers[event] = nil
+    end
+    return self
+end
+
+---Remove server handler
+---@param event string
+---@param callback? function
+---@return SocketSP
+function SocketSP:offServer(event, callback)
+    if callback then
+        if self.serverHandlers[event] then
+            for i, cb in ipairs(self.serverHandlers[event]) do
+                if cb == callback then
+                    table.remove(self.serverHandlers[event], i)
+                    break
+                end
+            end
+        end
+    else
+        self.serverHandlers[event] = nil
+        self.serverOnceHandlers[event] = nil
     end
     return self
 end
@@ -397,16 +442,27 @@ function SocketSP:leaveAll(player)
     end
 end
 
----Server emit to room (SP: triggers client handlers)
----@param room string
+---Server emit to room or player (SP: triggers client handlers)
+---@param roomOrPlayer string|IsoPlayer Room name or player object
 ---@return table Emitter-like object
-function SocketSP:to(room)
+function SocketSP:to(roomOrPlayer)
     local self_ = self
+    local player = getPlayer()
+    
     return {
         emit = function(_, event, data)
-            -- In SP, just trigger client handlers if player is in room
-            if self_.rooms[room] then
-                self_:_triggerClient(event, data)
+            -- In SP, there's only one player
+            -- Check if we're targeting that player
+            if type(roomOrPlayer) == "string" then
+                -- Room name - check if player is in room
+                if self_.rooms[roomOrPlayer] then
+                    self_:_triggerClient(event, data)
+                end
+            else
+                -- Player object - check if it's the current player
+                if roomOrPlayer and player and roomOrPlayer:getUsername() == player:getUsername() then
+                    self_:_triggerClient(event, data)
+                end
             end
         end
     }
@@ -417,15 +473,24 @@ end
 ---@return table
 function SocketSP:broadcast(excludePlayer)
     local self_ = self
-    return {
+    local excluded = excludePlayer
+    
+    local broadcaster = {
         emit = function(_, event, data)
             -- In SP, there's only one player, so if excluded, don't emit
-            if excludePlayer and excludePlayer == getPlayer() then
+            if excluded and excluded == getPlayer() then
                 return
             end
             self_:_triggerClient(event, data)
+        end,
+        -- Chain method to exclude a player
+        except = function(_, playerToExclude)
+            excluded = playerToExclude
+            return broadcaster
         end
     }
+    
+    return broadcaster
 end
 
 -- ==========================================================
@@ -433,8 +498,8 @@ end
 -- ==========================================================
 
 ---Run middleware chain
-function SocketSP:_runMiddleware(type, player, ...)
-    local middlewares = self.middlewares[type] or {}
+function SocketSP:_runMiddleware(middlewareType, player, ...)
+    local middlewares = self.middlewares[middlewareType] or {}
     local args = {...}
     local context = self:getContext(player) or {}
     

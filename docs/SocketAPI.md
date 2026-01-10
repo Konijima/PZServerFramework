@@ -486,14 +486,19 @@ local rooms = chat:getAllRooms()
 
 #### Events
 
-##### `socket:on(event, callback)`
+##### `socket:on(event, callback)` / `socket:onServer(event, callback)`
 
-Register a server-side event handler.
+Register a server-side event handler. Both methods are equivalent on the server.
+
+> **Note:** When writing code that needs to work in both multiplayer and singleplayer modes,
+> use `:onServer()` instead of `:on()` for server-side handlers. This ensures proper
+> handler registration in the unified SocketSP implementation used for singleplayer.
 
 **Callback Signature:** `function(player, data, context, ack)`
 
 ```lua
-chat:on("message", function(player, data, context, ack)
+-- Using onServer (recommended for SP/MP compatibility)
+chat:onServer("message", function(player, data, context, ack)
     print(player:getUsername() .. " says: " .. data.text)
     
     -- Use context
@@ -514,13 +519,13 @@ chat:on("message", function(player, data, context, ack)
 end)
 ```
 
-##### `socket:once(event, callback)`
+##### `socket:once(event, callback)` / `socket:onceServer(event, callback)`
 
-One-time event handler.
+One-time event handler. Use `:onceServer()` for SP/MP compatibility.
 
-##### `socket:off(event, callback)`
+##### `socket:off(event, callback)` / `socket:offServer(event, callback)`
 
-Remove event handler(s).
+Remove event handler(s). Use `:offServer()` for SP/MP compatibility.
 
 #### Emission
 
@@ -536,12 +541,19 @@ chat:emit("notification", { text = "Hello!" }, player)
 chat:emit("serverMessage", { text = "Server restarting in 5 minutes" })
 ```
 
-##### `socket:to(room)`
+##### `socket:to(roomOrPlayer)`
 
-Create an emitter targeting a specific room.
+Create an emitter targeting a specific room or player.
+
+**Parameters:**
+- `roomOrPlayer` (string|IsoPlayer): Room name or player object
 
 ```lua
+-- Target a room
 chat:to("global"):emit("message", { text = "Hello global!" })
+
+-- Target a specific player
+chat:to(player):emit("notification", { text = "Hello!" })
 
 -- Chain multiple rooms
 chat:to("room1"):to("room2"):emit("alert", { text = "Alert!" })
@@ -834,6 +846,40 @@ The Socket system automatically handles singleplayer mode. When running in SP:
 - All functionality works identically
 
 No code changes needed - just use `KoniLib.Socket.of()` normally.
+
+### Important: Server Handler Registration
+
+In singleplayer mode, `SocketSP` combines both client and server functionality. To properly separate handlers:
+
+| Method | Handler Type | Callback Signature |
+|--------|-------------|-------------------|
+| `:on(event, cb)` | Client | `function(data)` |
+| `:onServer(event, cb)` | Server | `function(player, data, context, ack)` |
+| `:once(event, cb)` | Client (one-time) | `function(data)` |
+| `:onceServer(event, cb)` | Server (one-time) | `function(player, data, context, ack)` |
+
+**Best Practice:** Always use `:onServer()` for server-side handlers in your server code. This ensures your code works in both multiplayer (via SocketServer) and singleplayer (via SocketSP) modes.
+
+```lua
+-- server/MyMod/Server.lua
+local chat = KoniLib.Socket.of("/chat")
+
+-- Use onServer() for handlers that receive client emissions
+chat:onServer("message", function(player, data, context, ack)
+    -- This works in both MP and SP!
+    chat:to(player):emit("echo", data)
+end)
+```
+
+### Targeting Players in Singleplayer
+
+The `:to()` method accepts both room names and player objects:
+
+```lua
+-- Both work in SP and MP
+chat:to("global"):emit("message", data)     -- Target room
+chat:to(player):emit("notification", data)  -- Target player
+```
 
 ---
 

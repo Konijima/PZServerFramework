@@ -1,0 +1,8 @@
+name=Chat System
+id=ChatSystem
+description=Custom chat system using Socket.io-like networking. Replaces the vanilla chat with a modern, customizable UI.
+poster=poster.png
+icon=icon.png
+author=Konijima
+modversion=1.0.0
+require=\KoniLib

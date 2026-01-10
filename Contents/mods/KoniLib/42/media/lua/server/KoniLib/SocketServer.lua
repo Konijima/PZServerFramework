@@ -96,8 +96,8 @@ end
 ---@param ... any Additional arguments for middleware
 ---@return boolean success
 ---@return string|table contextOrReason
-function SocketServer:_runMiddleware(type, player, ...)
-    local middlewares = self.middlewares[type] or {}
+function SocketServer:_runMiddleware(middlewareType, player, ...)
+    local middlewares = self.middlewares[middlewareType] or {}
     local args = {...}
     local context = self:getContext(player) or {}
     
@@ -397,6 +397,14 @@ function SocketServer:on(event, callback)
     return self
 end
 
+---Alias for :on() to maintain consistency with SocketSP API
+---@param event string Event name
+---@param callback function Callback function(player, data, context, ack?)
+---@return SocketServer self
+function SocketServer:onServer(event, callback)
+    return self:on(event, callback)
+end
+
 ---Register a one-time event handler
 ---@param event string
 ---@param callback function
@@ -407,6 +415,14 @@ function SocketServer:once(event, callback)
     end
     table.insert(self.onceHandlers[event], callback)
     return self
+end
+
+---Alias for :once() to maintain consistency with SocketSP API
+---@param event string
+---@param callback function
+---@return SocketServer self
+function SocketServer:onceServer(event, callback)
+    return self:once(event, callback)
 end
 
 ---Remove an event handler
@@ -428,6 +444,14 @@ function SocketServer:off(event, callback)
         self.onceHandlers[event] = nil
     end
     return self
+end
+
+---Alias for :off() to maintain consistency with SocketSP API
+---@param event string
+---@param callback? function
+---@return SocketServer self
+function SocketServer:offServer(event, callback)
+    return self:off(event, callback)
 end
 
 ---Internal: Trigger event handlers
@@ -487,18 +511,23 @@ function SocketServer:emit(event, data, player)
     return self
 end
 
----Create an emitter for a specific room
----@param room string
+---Create an emitter for a specific room or player
+---@param roomOrPlayer string|IsoPlayer Room name or player object
 ---@return SocketEmitter
-function SocketServer:to(room)
-    return SocketEmitter.new(self, { room = room })
+function SocketServer:to(roomOrPlayer)
+    if type(roomOrPlayer) == "string" then
+        return SocketEmitter.new(self, { room = roomOrPlayer })
+    else
+        -- Assume it's a player object
+        return SocketEmitter.new(self, { player = roomOrPlayer })
+    end
 end
 
 ---Alias for :to()
----@param room string
+---@param roomOrPlayer string|IsoPlayer Room name or player object
 ---@return SocketEmitter
-function SocketServer:in_(room)
-    return self:to(room)
+function SocketServer:in_(roomOrPlayer)
+    return self:to(roomOrPlayer)
 end
 
 ---Create an emitter that excludes a specific player
@@ -529,9 +558,13 @@ function SocketEmitter.new(server, options)
     self.options = options or {}
     self.rooms = {}
     self.excludes = {}
+    self.targetPlayers = {}
     
     if options.room then
         self.rooms[options.room] = true
+    end
+    if options.player then
+        self.targetPlayers[options.player:getUsername()] = options.player
     end
     if options.exclude then
         self.excludes[options.exclude:getUsername()] = true
@@ -540,11 +573,15 @@ function SocketEmitter.new(server, options)
     return self
 end
 
----Chain another room
----@param room string
+---Chain another room or player
+---@param roomOrPlayer string|IsoPlayer Room name or player object
 ---@return SocketEmitter
-function SocketEmitter:to(room)
-    self.rooms[room] = true
+function SocketEmitter:to(roomOrPlayer)
+    if type(roomOrPlayer) == "string" then
+        self.rooms[roomOrPlayer] = true
+    else
+        self.targetPlayers[roomOrPlayer:getUsername()] = roomOrPlayer
+    end
     return self
 end
 
@@ -568,6 +605,16 @@ function SocketEmitter:emit(event, data)
     
     local sent = {}
     
+    -- If targeting specific players, emit to them
+    if next(self.targetPlayers) then
+        for username, player in pairs(self.targetPlayers) do
+            if not self.excludes[username] and not sent[username] then
+                MP.Send(player, Socket.MODULE, Socket.CMD.EMIT, args)
+                sent[username] = true
+            end
+        end
+    end
+    
     -- If rooms specified, emit to those rooms
     if next(self.rooms) then
         for room, _ in pairs(self.rooms) do
@@ -580,8 +627,10 @@ function SocketEmitter:emit(event, data)
                 end
             end
         end
-    else
-        -- No rooms, emit to all connected except excludes
+    end
+    
+    -- If no rooms and no target players, emit to all connected except excludes
+    if not next(self.rooms) and not next(self.targetPlayers) then
         for username, conn in pairs(self.server.connections) do
             if not self.excludes[username] and conn.player then
                 MP.Send(conn.player, Socket.MODULE, Socket.CMD.EMIT, args)
