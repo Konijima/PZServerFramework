@@ -1,7 +1,7 @@
 if not KoniLib then KoniLib = {} end
 
 local Socket = require("KoniLib/Socket")
-local MP = KoniLib.MP
+local MP = require("KoniLib/MP")
 
 ---@class SocketServer
 ---@field namespace string The namespace this socket belongs to

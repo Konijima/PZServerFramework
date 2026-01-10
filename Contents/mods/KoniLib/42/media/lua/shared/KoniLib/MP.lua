@@ -94,3 +94,5 @@ if isClient() then
 elseif isServer() then
     Events.OnClientCommand.Add(OnClientCommand)
 end
+
+return KoniLib.MP
