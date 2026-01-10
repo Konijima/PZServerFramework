@@ -65,7 +65,10 @@ end
 ---Generate a unique ID for acknowledgment tracking
 ---@return string
 function Socket.GenerateAckId()
-    return tostring(os.time()) .. "-" .. tostring(math.random(100000, 999999))
+    -- Use PZ's built-in functions instead of os.time/math.random
+    local timestamp = getTimestampMs and getTimestampMs() or 0
+    local random = ZombRand and ZombRand(100000, 999999) or 0
+    return tostring(timestamp) .. "-" .. tostring(random)
 end
 
 ---Normalize namespace name (ensure it starts with /)
