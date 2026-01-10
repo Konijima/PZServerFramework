@@ -2,6 +2,8 @@
 
 **KoniLib** is a shared library mod designed to provide common utilities and abstractions for Project Zomboid mods in this suite. It serves as a strict dependency for mods like **AreaSystem**.
 
+> **📚 Full Documentation:** See [docs/API.md](../../../docs/API.md) for complete API reference.
+
 ## Features
 
 ### 1. Multiplayer (MP) Abstraction
@@ -20,7 +22,7 @@ The `KoniLib.Socket` module provides a **Socket.io-inspired** networking abstrac
 - **Acknowledgments** - Request/response pattern with callbacks
 - **Broadcasting** - Flexible emission patterns (`to`, `broadcast`, `except`)
 
-See [/docs/SocketAPI.md](/docs/SocketAPI.md) for full documentation.
+See [SocketAPI.md](../../../docs/SocketAPI.md) for full documentation.
 
 ### 3. Event System Abstraction
 The `KoniLib.Event` module provides an object-oriented wrapper around Project Zomboid's native event system. It simplifies the registration, subscription, and triggering of custom events.
@@ -132,7 +134,7 @@ end)
 ### 4. Custom Lifecycle Events
 KoniLib introduces a set of standardized events to handle player lifecycle and networking reliably, fixing common issues where vanilla events fire too early or inconsistently across MP/SP.
 
-See [/docs/EventsAPI.md](/docs/EventsAPI.md) for full documentation with flow diagrams and examples.
+See [EventsAPI.md](../../../docs/EventsAPI.md) for full documentation with flow diagrams and examples.
 
 #### Client-Side Events
 | Event | Arguments | Description |
