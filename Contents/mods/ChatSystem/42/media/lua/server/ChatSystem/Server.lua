@@ -503,7 +503,8 @@ Events.EveryOneMinute.Add(cleanupTypingIndicators)
 
 --- Broadcast a system message to all connected players
 ---@param text string
-function Server.BroadcastSystemMessage(text)
+---@param color table? Optional color override {r, g, b}
+function Server.BroadcastSystemMessage(text, color)
     -- Only broadcast if socket is connected (SP) or has connections (MP)
     if not chatSocket.connected and not next(chatSocket.connections or {}) then
         Socket.Log("Skipping broadcast (not connected): " .. text)
@@ -511,6 +512,9 @@ function Server.BroadcastSystemMessage(text)
     end
     
     local msg = ChatSystem.CreateSystemMessage(text, ChatSystem.ChannelType.GLOBAL)
+    if color then
+        msg.color = color
+    end
     chatSocket:broadcast():emit("message", msg)
 end
 
@@ -536,9 +540,9 @@ local function OnPlayerInit(playerIndex, player, isRespawn)
         if tickCount >= ticksToWait then
             Events.OnTick.Remove(delayedBroadcast)
             if isRespawn then
-                Server.BroadcastSystemMessage(username .. " has respawned.")
+                Server.BroadcastSystemMessage(username .. " has respawned.", { r = 0.5, g = 1, b = 0.5 }) -- Light green
             else
-                Server.BroadcastSystemMessage(username .. " has joined the server.")
+                Server.BroadcastSystemMessage(username .. " has joined the server.", { r = 0.5, g = 1, b = 0.5 }) -- Light green
             end
         end
     end
@@ -558,14 +562,14 @@ local function OnPlayerQuit(username)
     -- Cleanup player data
     playerData[username] = nil
     
-    Server.BroadcastSystemMessage(username .. " has left the server.")
+    Server.BroadcastSystemMessage(username .. " has left the server.", { r = 0.6, g = 0.6, b = 0.6 }) -- Gray
 end
 
 -- Player died
 local function OnPlayerDeath(player)
     if not player then return end
     local username = player:getUsername()
-    Server.BroadcastSystemMessage(username .. " has died.")
+    Server.BroadcastSystemMessage(username .. " has died.", { r = 1, g = 0.3, b = 0.3 }) -- Red
 end
 
 -- Use KoniLib events for reliable detection

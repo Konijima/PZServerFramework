@@ -353,6 +353,12 @@ end
 -- ==========================================================
 
 function ISCustomChat:focus()
+    -- Prevent focusing if player is dead
+    local player = getPlayer()
+    if player and player:isDead() then
+        return
+    end
+    
     self:setVisible(true)
     ISCustomChat.focused = true
     
@@ -654,6 +660,15 @@ function ISCustomChat:isMouseOverTitleBar(x, y)
     return ISCollapsableWindow.isMouseOverTitleBar(self, x, y)
 end
 
+function ISCustomChat:onMouseDown(x, y)
+    -- If locked, don't allow dragging (but still allow bringToTop)
+    if self.locked then
+        self:bringToTop()
+        return
+    end
+    ISCollapsableWindow.onMouseDown(self, x, y)
+end
+
 -- ==========================================================
 -- Layout Persistence
 -- ==========================================================
@@ -743,6 +758,13 @@ function ISCustomChat.OnTick()
     end
 end
 
+-- Handle player death - unfocus chat
+function ISCustomChat.OnPlayerDeath(player)
+    if ISCustomChat.instance and ISCustomChat.focused then
+        ISCustomChat.instance:unfocus()
+    end
+end
+
 -- Create custom chat
 function ISCustomChat.CreateChat()
     if not isClient() and isServer() then return end
@@ -782,6 +804,7 @@ function ISCustomChat.CreateChat()
     Events.OnKeyPressed.Add(ISCustomChat.OnToggleChat)
     Events.OnMouseDown.Add(ISCustomChat.OnMouseDown)
     Events.OnTick.Add(ISCustomChat.OnTick)
+    Events.OnPlayerDeath.Add(ISCustomChat.OnPlayerDeath)
     
     print("[ChatSystem] Custom Chat UI Created")
 end
