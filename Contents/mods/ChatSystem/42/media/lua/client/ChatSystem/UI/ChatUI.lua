@@ -25,11 +25,13 @@ function ISCustomChat:initialise()
     self.pin = true
     self.resizable = true
     self.drawFrame = true
+    self.locked = false
     
     -- Opacity settings
     self.minOpaque = 0.3
     self.maxOpaque = 0.9
     self.fadeTime = 5
+    self.fadeEnabled = true
     self.backgroundColor = { r = 0, g = 0, b = 0, a = self.maxOpaque }
     self.borderColor = { r = 0.4, g = 0.4, b = 0.4, a = 1 }
     
@@ -45,12 +47,26 @@ function ISCustomChat:createChildren()
     ISCollapsableWindow.createChildren(self)
     
     local th = self:titleBarHeight()
-    local btnSize = 20
+    local btnSize = 16
     local padding = 5
     local entryHeight = 25
+    local bottomPadding = 15  -- Increased to avoid resize handle
+    
+    -- Lock button in title bar (to the left of the close button)
+    -- Close button is at x=3, so we put lock button next to it
+    self.lockButton = ISButton:new(btnSize + 6, 0, btnSize, th, "", self, ISCustomChat.onLockClick)
+    self.lockButton:initialise()
+    self.lockButton:instantiate()
+    self.lockButton.anchorRight = false
+    self.lockButton.anchorLeft = true
+    self.lockButton.borderColor = { r = 0, g = 0, b = 0, a = 0 }
+    self.lockButton.backgroundColor = { r = 0, g = 0, b = 0, a = 0 }
+    self.lockButton.backgroundColorMouseOver = { r = 0, g = 0, b = 0, a = 0 }
+    self.lockButton:setImage(getTexture("media/ui/inventoryPanes/Button_LockOpen.png"))
+    self:addChild(self.lockButton)
     
     -- Channel selector button
-    self.channelBtn = ISButton:new(padding, th + padding, 80, btnSize, "Local", self, ISCustomChat.onChannelClick)
+    self.channelBtn = ISButton:new(padding, th + padding, 80, 20, "Local", self, ISCustomChat.onChannelClick)
     self.channelBtn:initialise()
     self.channelBtn:instantiate()
     self.channelBtn.borderColor = { r = 0.5, g = 0.5, b = 0.5, a = 1 }
@@ -70,8 +86,7 @@ function ISCustomChat:createChildren()
     self.gearBtn.anchorBottom = false
     self:addChild(self.gearBtn)
     
-    -- Chat text panel (account for bottom padding)
-    local bottomPadding = padding + 3
+    -- Chat text panel
     local chatY = th + btnSize + padding * 2
     local chatHeight = self.height - chatY - entryHeight - bottomPadding - padding
     
@@ -91,7 +106,7 @@ function ISCustomChat:createChildren()
     self.chatText.chatLines = {}
     self:addChild(self.chatText)
     
-    -- Text entry (uses bottomPadding defined above)
+    -- Text entry
     self.textEntry = ISTextEntryBox:new("", padding, self.height - entryHeight - bottomPadding, self.width - padding * 2, entryHeight)
     self.textEntry:initialise()
     self.textEntry:instantiate()
@@ -422,27 +437,60 @@ function ISCustomChat:onGearClick()
     local context = ISContextMenu.get(0, self:getAbsoluteX() + self.gearBtn:getX(), self:getAbsoluteY() + self.gearBtn:getY() + self.gearBtn:getHeight())
     
     -- Timestamp toggle
-    local tsOption = context:addOption(self.showTimestamp and "Hide Timestamps" or "Show Timestamps", self, ISCustomChat.toggleTimestamp)
+    context:addOption(self.showTimestamp and "Hide Timestamps" or "Show Timestamps", self, ISCustomChat.toggleTimestamp)
     
-    -- Clear chat
-    context:addOption("Clear Chat", self, ISCustomChat.clearChat)
+    -- Fade toggle
+    context:addOption(self.fadeEnabled and "Disable Fading" or "Enable Fading", self, ISCustomChat.toggleFade)
+    
+    -- Fade opacity submenu (only show if fading is enabled)
+    if self.fadeEnabled then
+        local fadeOption = context:addOption("Fade Opacity", self)
+        local fadeSubMenu = context:getNew(context)
+        context:addSubMenu(fadeOption, fadeSubMenu)
+        
+        local opacities = { 0, 25, 50, 75 }
+        for _, pct in ipairs(opacities) do
+            local option = fadeSubMenu:addOption(pct .. "%", self, ISCustomChat.setFadeOpacity, pct / 100)
+            if math.floor(self.minOpaque * 100) == pct then
+                fadeSubMenu:setOptionChecked(option, true)
+            end
+        end
+    end
     
     -- Font size submenu
     local fontOption = context:addOption("Font Size", self)
     local fontSubMenu = context:getNew(context)
     context:addSubMenu(fontOption, fontSubMenu)
-    fontSubMenu:addOption("Small", self, ISCustomChat.setFontSize, "small")
-    fontSubMenu:addOption("Medium", self, ISCustomChat.setFontSize, "medium")
-    fontSubMenu:addOption("Large", self, ISCustomChat.setFontSize, "large")
+    local smallOpt = fontSubMenu:addOption("Small", self, ISCustomChat.setFontSize, "small")
+    local medOpt = fontSubMenu:addOption("Medium", self, ISCustomChat.setFontSize, "medium")
+    local largeOpt = fontSubMenu:addOption("Large", self, ISCustomChat.setFontSize, "large")
+    if self.chatFont == "small" then
+        fontSubMenu:setOptionChecked(smallOpt, true)
+    elseif self.chatFont == "large" then
+        fontSubMenu:setOptionChecked(largeOpt, true)
+    else
+        fontSubMenu:setOptionChecked(medOpt, true)
+    end
+    
+    -- Clear chat
+    context:addOption("Clear Chat", self, ISCustomChat.clearChat)
 end
 
 function ISCustomChat:toggleTimestamp()
     self.showTimestamp = not self.showTimestamp
-    -- Rebuild text to apply change
-    self.chatText.chatLines = {}
-    for _, msg in ipairs(ChatSystem.Client.messages) do
-        self:addMessage(msg)
+    self:rebuildText()
+end
+
+function ISCustomChat:toggleFade()
+    self.fadeEnabled = not self.fadeEnabled
+    if not self.fadeEnabled then
+        -- Reset to full opacity when disabling fade
+        self.backgroundColor.a = self.maxOpaque
     end
+end
+
+function ISCustomChat:setFadeOpacity(opacity)
+    self.minOpaque = opacity
 end
 
 function ISCustomChat:clearChat()
@@ -516,14 +564,17 @@ end
 -- ==========================================================
 
 function ISCustomChat:prerender()
-    -- Handle fade
-    if not ISCustomChat.focused and self.fadeTime > 0 then
+    -- Handle fade (only if enabled)
+    if self.fadeEnabled and not ISCustomChat.focused and self.fadeTime > 0 then
         self.fadeTimer = self.fadeTimer + (UIManager.getMillisSinceLastRender() / 1000)
         
         if self.fadeTimer > self.fadeTime then
             local fadeProgress = math.min((self.fadeTimer - self.fadeTime) / 3, 1)
             self.backgroundColor.a = self.maxOpaque - (self.maxOpaque - self.minOpaque) * fadeProgress
         end
+    elseif not self.fadeEnabled then
+        -- Keep at max opacity if fading is disabled
+        self.backgroundColor.a = self.maxOpaque
     end
     
     ISCollapsableWindow.prerender(self)
@@ -545,12 +596,57 @@ function ISCustomChat:onResize()
 end
 
 -- ==========================================================
+-- Lock/Unlock
+-- ==========================================================
+
+function ISCustomChat:onLockClick()
+    self.locked = not self.locked
+    self:updateLockState()
+end
+
+function ISCustomChat:updateLockState()
+    local padding = 5
+    local entryHeight = 25
+    local bottomPadding = self.locked and 5 or 15  -- Less padding when locked (no resize handle)
+    
+    if self.locked then
+        self.lockButton:setImage(getTexture("media/ui/inventoryPanes/Button_Lock.png"))
+        self:setResizable(false)
+    else
+        self.lockButton:setImage(getTexture("media/ui/inventoryPanes/Button_LockOpen.png"))
+        self:setResizable(true)
+    end
+    
+    -- Update text entry position
+    self.textEntry:setY(self.height - entryHeight - bottomPadding)
+    
+    -- Update chat panel height
+    local th = self:titleBarHeight()
+    local btnSize = 16
+    local chatY = th + btnSize + padding * 2
+    local chatHeight = self.height - chatY - entryHeight - bottomPadding - padding
+    self.chatText:setHeight(chatHeight)
+end
+
+function ISCustomChat:isMouseOverTitleBar(x, y)
+    -- If locked, don't allow dragging
+    if self.locked then
+        return false
+    end
+    return ISCollapsableWindow.isMouseOverTitleBar(self, x, y)
+end
+
+-- ==========================================================
 -- Layout Persistence
 -- ==========================================================
 
 function ISCustomChat:SaveLayout(name, layout)
     ISLayoutManager.DefaultSaveWindow(self, layout)
     layout.showTimestamp = tostring(self.showTimestamp or false)
+    layout.locked = tostring(self.locked or false)
+    layout.chatFont = self.chatFont or "medium"
+    layout.fadeEnabled = tostring(self.fadeEnabled)
+    layout.minOpaque = tostring(self.minOpaque)
 end
 
 function ISCustomChat:RestoreLayout(name, layout)
@@ -559,6 +655,27 @@ function ISCustomChat:RestoreLayout(name, layout)
         self.showTimestamp = true
     elseif layout.showTimestamp == 'false' then
         self.showTimestamp = false
+    end
+    
+    if layout.locked == 'true' then
+        self.locked = true
+    else
+        self.locked = false
+    end
+    self:updateLockState()
+    
+    if layout.fadeEnabled == 'true' then
+        self.fadeEnabled = true
+    elseif layout.fadeEnabled == 'false' then
+        self.fadeEnabled = false
+    end
+    
+    if layout.minOpaque then
+        self.minOpaque = tonumber(layout.minOpaque) or 0.3
+    end
+    
+    if layout.chatFont then
+        self:setFontSize(layout.chatFont)
     end
 end
 
