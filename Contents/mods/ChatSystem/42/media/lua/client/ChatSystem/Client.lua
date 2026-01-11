@@ -292,11 +292,17 @@ function Client.SendMessageDirect(text)
     
     -- Check for yell (uppercase or ! prefix)
     if channel == ChatSystem.ChannelType.LOCAL then
-        if text == text:upper() and #text > 3 then
+        local hasYellPrefix = luautils.stringStarts(text, "!")
+        local textToCheck = hasYellPrefix and text:sub(2) or text
+        local isUppercase = textToCheck == textToCheck:upper() and #textToCheck > 0 and textToCheck:match("%a")
+        
+        if hasYellPrefix then
             metadata.isYell = true
-        elseif luautils.stringStarts(text, "!") then
+            text = text:sub(2)  -- Always remove ! prefix
+        end
+        
+        if isUppercase then
             metadata.isYell = true
-            text = text:sub(2)
         end
     end
     
@@ -342,11 +348,17 @@ function Client.SendMessage(inputText)
     
     -- Check for yell (uppercase or ! prefix)
     if channel == ChatSystem.ChannelType.LOCAL then
-        if text == text:upper() and #text > 3 then
+        local hasYellPrefix = luautils.stringStarts(text, "!")
+        local textToCheck = hasYellPrefix and text:sub(2) or text
+        local isUppercase = textToCheck == textToCheck:upper() and #textToCheck > 0 and textToCheck:match("%a")
+        
+        if hasYellPrefix then
             metadata.isYell = true
-        elseif luautils.stringStarts(text, "!") then
+            text = text:sub(2)  -- Always remove ! prefix
+        end
+        
+        if isUppercase then
             metadata.isYell = true
-            text = text:sub(2)
         end
     end
     
@@ -639,7 +651,7 @@ local function OnVanillaMessage(message, tabID)
         end
         
         -- Also check if the text is all uppercase (common yell indicator)
-        if not isYell and text == text:upper() and #text > 3 then
+        if not isYell and text == text:upper() and #text > 0 and text:match("%a") then
             isYell = true
         end
         
