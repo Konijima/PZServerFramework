@@ -94,12 +94,72 @@ else
     print("[ChatSystem] Error: KoniLib.Event not found!")
 end
 
--- Settings
+-- Settings (defaults, will be overridden by sandbox options)
 ChatSystem.Settings = {
     maxMessageLength = 500,
     maxMessagesStored = 200,
     localChatRange = 30, -- tiles
     yellRange = 60,      -- tiles for yelling
+    
+    -- Channel toggles
+    enableGlobalChat = true,
+    enableLocalChat = true,
+    enableFactionChat = true,
+    enableSafehouseChat = true,
+    enableAdminChat = true,
+    enablePrivateMessages = true,
+    
+    -- UI
+    showTimestamps = true,
+    timestampFormat = 1, -- 1 = 12-hour, 2 = 24-hour, 3 = short
+    
+    -- Moderation
+    chatSlowMode = 0, -- seconds between messages (0 = disabled)
+    allowColoredMessages = false,
 }
+
+--- Load settings from sandbox options (call after game starts)
+function ChatSystem.LoadSandboxSettings()
+    if not SandboxVars or not SandboxVars.ChatSystem then
+        print("[ChatSystem] SandboxVars.ChatSystem not available, using defaults")
+        return
+    end
+    
+    local sv = SandboxVars.ChatSystem
+    
+    -- General
+    if sv.MaxMessageLength then ChatSystem.Settings.maxMessageLength = sv.MaxMessageLength end
+    if sv.MaxMessagesStored then ChatSystem.Settings.maxMessagesStored = sv.MaxMessagesStored end
+    
+    -- Range
+    if sv.LocalChatRange then ChatSystem.Settings.localChatRange = sv.LocalChatRange end
+    if sv.YellRange then ChatSystem.Settings.yellRange = sv.YellRange end
+    
+    -- Channel toggles
+    if sv.EnableGlobalChat ~= nil then ChatSystem.Settings.enableGlobalChat = sv.EnableGlobalChat end
+    if sv.EnableLocalChat ~= nil then ChatSystem.Settings.enableLocalChat = sv.EnableLocalChat end
+    if sv.EnableFactionChat ~= nil then ChatSystem.Settings.enableFactionChat = sv.EnableFactionChat end
+    if sv.EnableSafehouseChat ~= nil then ChatSystem.Settings.enableSafehouseChat = sv.EnableSafehouseChat end
+    if sv.EnableAdminChat ~= nil then ChatSystem.Settings.enableAdminChat = sv.EnableAdminChat end
+    if sv.EnablePrivateMessages ~= nil then ChatSystem.Settings.enablePrivateMessages = sv.EnablePrivateMessages end
+    
+    -- UI
+    if sv.ShowTimestamps ~= nil then ChatSystem.Settings.showTimestamps = sv.ShowTimestamps end
+    if sv.TimestampFormat then ChatSystem.Settings.timestampFormat = sv.TimestampFormat end
+    
+    -- Moderation
+    if sv.ChatSlowMode then ChatSystem.Settings.chatSlowMode = sv.ChatSlowMode end
+    if sv.AllowColoredMessages ~= nil then ChatSystem.Settings.allowColoredMessages = sv.AllowColoredMessages end
+    
+    print("[ChatSystem] Sandbox settings loaded:")
+    print("  - Max message length: " .. ChatSystem.Settings.maxMessageLength)
+    print("  - Local chat range: " .. ChatSystem.Settings.localChatRange)
+    print("  - Yell range: " .. ChatSystem.Settings.yellRange)
+    print("  - Global chat: " .. tostring(ChatSystem.Settings.enableGlobalChat))
+    print("  - Private messages: " .. tostring(ChatSystem.Settings.enablePrivateMessages))
+end
+
+-- Load sandbox settings when the game starts
+Events.OnGameStart.Add(ChatSystem.LoadSandboxSettings)
 
 print("[ChatSystem] Shared Definitions Loaded")

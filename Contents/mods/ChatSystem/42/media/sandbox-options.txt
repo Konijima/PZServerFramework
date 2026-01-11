@@ -1,0 +1,134 @@
+VERSION = 1,
+
+-- ==========================================================
+-- Chat System Sandbox Options
+-- ==========================================================
+
+-- General Settings
+option ChatSystem.MaxMessageLength
+{
+    type = integer,
+    min = 50,
+    max = 2000,
+    default = 500,
+    page = ChatSystem,
+    translation = ChatSystem_MaxMessageLength,
+}
+
+option ChatSystem.MaxMessagesStored
+{
+    type = integer,
+    min = 50,
+    max = 1000,
+    default = 200,
+    page = ChatSystem,
+    translation = ChatSystem_MaxMessagesStored,
+}
+
+-- Range Settings
+option ChatSystem.LocalChatRange
+{
+    type = integer,
+    min = 5,
+    max = 100,
+    default = 30,
+    page = ChatSystem,
+    translation = ChatSystem_LocalChatRange,
+}
+
+option ChatSystem.YellRange
+{
+    type = integer,
+    min = 10,
+    max = 200,
+    default = 60,
+    page = ChatSystem,
+    translation = ChatSystem_YellRange,
+}
+
+-- Channel Toggles
+option ChatSystem.EnableGlobalChat
+{
+    type = boolean,
+    default = true,
+    page = ChatSystem,
+    translation = ChatSystem_EnableGlobalChat,
+}
+
+option ChatSystem.EnableLocalChat
+{
+    type = boolean,
+    default = true,
+    page = ChatSystem,
+    translation = ChatSystem_EnableLocalChat,
+}
+
+option ChatSystem.EnableFactionChat
+{
+    type = boolean,
+    default = true,
+    page = ChatSystem,
+    translation = ChatSystem_EnableFactionChat,
+}
+
+option ChatSystem.EnableSafehouseChat
+{
+    type = boolean,
+    default = true,
+    page = ChatSystem,
+    translation = ChatSystem_EnableSafehouseChat,
+}
+
+option ChatSystem.EnableAdminChat
+{
+    type = boolean,
+    default = true,
+    page = ChatSystem,
+    translation = ChatSystem_EnableAdminChat,
+}
+
+option ChatSystem.EnablePrivateMessages
+{
+    type = boolean,
+    default = true,
+    page = ChatSystem,
+    translation = ChatSystem_EnablePrivateMessages,
+}
+
+-- UI Settings
+option ChatSystem.ShowTimestamps
+{
+    type = boolean,
+    default = true,
+    page = ChatSystem,
+    translation = ChatSystem_ShowTimestamps,
+}
+
+option ChatSystem.TimestampFormat
+{
+    type = enum,
+    numValues = 3,
+    default = 1,
+    page = ChatSystem,
+    translation = ChatSystem_TimestampFormat,
+    valueTranslation = ChatSystem_TimestampFormat,
+}
+
+-- Moderation Settings
+option ChatSystem.ChatSlowMode
+{
+    type = integer,
+    min = 0,
+    max = 60,
+    default = 0,
+    page = ChatSystem,
+    translation = ChatSystem_ChatSlowMode,
+}
+
+option ChatSystem.AllowColoredMessages
+{
+    type = boolean,
+    default = false,
+    page = ChatSystem,
+    translation = ChatSystem_AllowColoredMessages,
+}

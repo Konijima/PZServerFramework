@@ -1,0 +1,58 @@
+Sandbox_EN = {
+    -- ==========================================================
+    -- Chat System Sandbox Options
+    -- ==========================================================
+    
+    -- Page Title
+    Sandbox_ChatSystem = "Chat System",
+    
+    -- General Settings
+    Sandbox_ChatSystem_MaxMessageLength = "Max Message Length",
+    Sandbox_ChatSystem_MaxMessageLength_tooltip = "Maximum number of characters allowed in a single chat message.",
+    
+    Sandbox_ChatSystem_MaxMessagesStored = "Message History Size",
+    Sandbox_ChatSystem_MaxMessagesStored_tooltip = "Maximum number of messages stored in the chat history per channel.",
+    
+    -- Range Settings
+    Sandbox_ChatSystem_LocalChatRange = "Local Chat Range",
+    Sandbox_ChatSystem_LocalChatRange_tooltip = "Distance in tiles that local chat messages can be seen.",
+    
+    Sandbox_ChatSystem_YellRange = "Yell Range",
+    Sandbox_ChatSystem_YellRange_tooltip = "Distance in tiles that yelled messages can be heard.",
+    
+    -- Channel Toggles
+    Sandbox_ChatSystem_EnableGlobalChat = "Enable Global Chat",
+    Sandbox_ChatSystem_EnableGlobalChat_tooltip = "Allow players to use the global chat channel to communicate server-wide.",
+    
+    Sandbox_ChatSystem_EnableLocalChat = "Enable Local Chat",
+    Sandbox_ChatSystem_EnableLocalChat_tooltip = "Allow players to use the local chat channel for nearby communication.",
+    
+    Sandbox_ChatSystem_EnableFactionChat = "Enable Faction Chat",
+    Sandbox_ChatSystem_EnableFactionChat_tooltip = "Allow players to use faction chat to communicate with faction members.",
+    
+    Sandbox_ChatSystem_EnableSafehouseChat = "Enable Safehouse Chat",
+    Sandbox_ChatSystem_EnableSafehouseChat_tooltip = "Allow players to use safehouse chat to communicate with safehouse members.",
+    
+    Sandbox_ChatSystem_EnableAdminChat = "Enable Admin Chat",
+    Sandbox_ChatSystem_EnableAdminChat_tooltip = "Allow admins to use a private admin-only chat channel.",
+    
+    Sandbox_ChatSystem_EnablePrivateMessages = "Enable Private Messages",
+    Sandbox_ChatSystem_EnablePrivateMessages_tooltip = "Allow players to send private messages to each other.",
+    
+    -- UI Settings
+    Sandbox_ChatSystem_ShowTimestamps = "Show Timestamps",
+    Sandbox_ChatSystem_ShowTimestamps_tooltip = "Display timestamps next to chat messages.",
+    
+    Sandbox_ChatSystem_TimestampFormat = "Timestamp Format",
+    Sandbox_ChatSystem_TimestampFormat_tooltip = "Choose the format for message timestamps.",
+    Sandbox_ChatSystem_TimestampFormat_option1 = "12-hour (3:45 PM)",
+    Sandbox_ChatSystem_TimestampFormat_option2 = "24-hour (15:45)",
+    Sandbox_ChatSystem_TimestampFormat_option3 = "Short (15:45:30)",
+    
+    -- Moderation Settings
+    Sandbox_ChatSystem_ChatSlowMode = "Chat Slow Mode (seconds)",
+    Sandbox_ChatSystem_ChatSlowMode_tooltip = "Time in seconds players must wait between messages. Set to 0 to disable.",
+    
+    Sandbox_ChatSystem_AllowColoredMessages = "Allow Colored Messages",
+    Sandbox_ChatSystem_AllowColoredMessages_tooltip = "Allow players to use color codes in their messages.",
+}

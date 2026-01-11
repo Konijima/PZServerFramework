@@ -884,10 +884,6 @@ function ISCustomChat:cycleChannel()
     ChatSystem.Client.SetChannel(nextChannel)
     self:updateTabs()
     self:rebuildText()
-    
-    -- Update text entry with new channel command
-    local prefix = ChatSystem.Client.GetChannelCommand(nextChannel)
-    self.textEntry:setText(prefix)
 end
 
 -- ==========================================================
