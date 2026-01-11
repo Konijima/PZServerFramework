@@ -186,83 +186,79 @@ end)
 -- Track last message time for slow mode
 local lastMessageTime = {} -- { [username] = timestamp }
 
--- Emit middleware - validate messages
-chatSocket:use(Socket.MIDDLEWARE.EMIT, function(player, event, data, context, next, reject)
-    -- Only validate "message" events
-    if event == "message" then
-        local username = player:getUsername()
-        local channel = data.channel or ChatSystem.ChannelType.LOCAL
-        
-        -- Validate message length
-        if data.text and #data.text > ChatSystem.Settings.maxMessageLength then
-            reject("Message too long")
-            return
-        end
-        
-        -- Check if channel is enabled
-        if channel == ChatSystem.ChannelType.GLOBAL and not ChatSystem.Settings.enableGlobalChat then
-            reject("Global chat is disabled")
-            return
-        end
-        
-        if channel == ChatSystem.ChannelType.FACTION and not ChatSystem.Settings.enableFactionChat then
-            reject("Faction chat is disabled")
-            return
-        end
-        
-        if channel == ChatSystem.ChannelType.SAFEHOUSE and not ChatSystem.Settings.enableSafehouseChat then
-            reject("Safehouse chat is disabled")
-            return
-        end
-        
-        if channel == ChatSystem.ChannelType.ADMIN and not ChatSystem.Settings.enableAdminChat then
-            reject("Admin chat is disabled")
-            return
-        end
-        
-        if channel == ChatSystem.ChannelType.PRIVATE and not ChatSystem.Settings.enablePrivateMessages then
-            reject("Private messages are disabled")
-            return
-        end
-        
-        -- Validate channel access (membership/permissions)
-        if channel == ChatSystem.ChannelType.ADMIN and not playerData[username].isAdmin then
-            reject("No access to admin chat")
-            return
-        end
-        
-        if channel == ChatSystem.ChannelType.FACTION and not playerData[username].faction then
-            reject("You are not in a faction")
-            return
-        end
-        
-        if channel == ChatSystem.ChannelType.SAFEHOUSE and not playerData[username].safehouseId then
-            reject("You don't have a safehouse")
-            return
-        end
-        
-        -- Check slow mode (skip for admins)
-        if ChatSystem.Settings.chatSlowMode > 0 and not playerData[username].isAdmin then
-            local now = getTimestampMs()
-            local lastTime = lastMessageTime[username] or 0
-            local cooldownMs = ChatSystem.Settings.chatSlowMode * 1000
-            
-            if now - lastTime < cooldownMs then
-                local remaining = math.ceil((cooldownMs - (now - lastTime)) / 1000)
-                reject("Slow mode: wait " .. remaining .. " second(s)")
-                return
-            end
-            
-            lastMessageTime[username] = now
-        end
-    end
-    
-    next()
-end)
-
 -- ==========================================================
 -- Event Handlers
 -- ==========================================================
+
+--- Validate incoming message from player
+---@param player IsoPlayer
+---@param data table Message data
+---@return boolean valid, string? errorMessage
+local function validateIncomingMessage(player, data)
+    local username = player:getUsername()
+    local channel = data.channel or ChatSystem.ChannelType.LOCAL
+    local pData = playerData[username]
+    
+    if not pData then
+        return false, "Not connected to chat"
+    end
+    
+    -- Validate message length
+    if data.text and #data.text > ChatSystem.Settings.maxMessageLength then
+        return false, "Message too long"
+    end
+    
+    -- Check if channel is enabled
+    if channel == ChatSystem.ChannelType.GLOBAL and not ChatSystem.Settings.enableGlobalChat then
+        return false, "Global chat is disabled"
+    end
+    
+    if channel == ChatSystem.ChannelType.FACTION and not ChatSystem.Settings.enableFactionChat then
+        return false, "Faction chat is disabled"
+    end
+    
+    if channel == ChatSystem.ChannelType.SAFEHOUSE and not ChatSystem.Settings.enableSafehouseChat then
+        return false, "Safehouse chat is disabled"
+    end
+    
+    if channel == ChatSystem.ChannelType.ADMIN and not ChatSystem.Settings.enableAdminChat then
+        return false, "Admin chat is disabled"
+    end
+    
+    if channel == ChatSystem.ChannelType.PRIVATE and not ChatSystem.Settings.enablePrivateMessages then
+        return false, "Private messages are disabled"
+    end
+    
+    -- Validate channel access (membership/permissions)
+    if channel == ChatSystem.ChannelType.ADMIN and not pData.isAdmin then
+        return false, "No access to admin chat"
+    end
+    
+    if channel == ChatSystem.ChannelType.FACTION and not pData.faction then
+        return false, "You are not in a faction"
+    end
+    
+    if channel == ChatSystem.ChannelType.SAFEHOUSE and not pData.safehouseId then
+        return false, "You don't have a safehouse"
+    end
+    
+    -- Check slow mode (skip for admins)
+    if ChatSystem.Settings.chatSlowMode > 0 and not pData.isAdmin then
+        local now = getTimestampMs()
+        local lastTime = lastMessageTime[username] or 0
+        local cooldownMs = ChatSystem.Settings.chatSlowMode * 1000
+        
+        if now - lastTime < cooldownMs then
+            local remaining = math.ceil((cooldownMs - (now - lastTime)) / 1000)
+            return false, "Slow mode: wait " .. remaining .. " second(s)"
+        end
+        
+        -- Update last message time
+        lastMessageTime[username] = now
+    end
+    
+    return true, nil
+end
 
 -- Handle incoming chat messages
 chatSocket:onServer("message", function(player, data, context, ack)
@@ -272,6 +268,19 @@ chatSocket:onServer("message", function(player, data, context, ack)
     local metadata = data.metadata or {}
     
     print("[ChatSystem] Server: Received message from " .. tostring(username) .. " - channel: " .. tostring(channel) .. ", text: " .. tostring(text))
+    
+    -- Validate the message first
+    local valid, errorMsg = validateIncomingMessage(player, data)
+    if not valid then
+        print("[ChatSystem] Server: Message rejected - " .. tostring(errorMsg))
+        -- Send error back to player
+        local errorMessage = ChatSystem.CreateSystemMessage(errorMsg)
+        chatSocket:to(player):emit("message", errorMessage)
+        if ack then
+            ack({ success = false, error = errorMsg })
+        end
+        return
+    end
     
     -- Check if this is a command (and not a channel command like /g, /l)
     if ChatSystem.Commands and ChatSystem.Commands.Server and ChatSystem.Commands.Server.HandleMessageAsCommand then

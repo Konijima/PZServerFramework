@@ -397,8 +397,24 @@ function Client.GetAvailableChannels()
         
         -- Check admin (only if admin chat is enabled and player is admin)
         if settings.enableAdminChat then
-            local role = player:getRole()
-            if role and Capability and role:hasCapability(Capability.AdminAccess) then
+            -- In singleplayer, check access level directly
+            local accessLevel = player:getAccessLevel()
+            local isAdmin = accessLevel and accessLevel ~= "None" and accessLevel ~= ""
+            
+            -- In multiplayer, also check role capabilities
+            if not isAdmin then
+                local role = player:getRole()
+                if role and Capability and Capability.AdminAccess then
+                    local success, hasAccess = pcall(function()
+                        return role:haveCapability(Capability.AdminAccess)
+                    end)
+                    if success and hasAccess then
+                        isAdmin = true
+                    end
+                end
+            end
+            
+            if isAdmin then
                 table.insert(channels, ChatSystem.ChannelType.ADMIN)
             end
         end

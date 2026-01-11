@@ -12,6 +12,9 @@
 - **Command Shortcuts**: Use familiar commands like `/g`, `/l`, `/pm`, etc.
 - **Message History**: Use Up/Down arrows to cycle through previous messages
 - **Yell Support**: Type in ALL CAPS or prefix with `!` to yell (increased range)
+- **Live Sandbox Settings**: Server settings update in real-time without restart
+- **Rate Limiting**: Configurable slow mode to prevent spam
+- **Channel Toggles**: Enable/disable channels per server (except Local which is always on)
 
 ## Requirements
 
@@ -61,14 +64,41 @@
 
 ## Configuration
 
-Edit `ChatSystem/Definitions.lua` to customize:
+### Sandbox Options
+
+ChatSystem settings are configured through the game's sandbox options menu. Changes take effect live without requiring a restart.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| Max Message Length | 50-2000 | 500 | Maximum characters allowed per message |
+| Message History Size | 50-1000 | 200 | Messages stored in chat history |
+| Local Chat Range | 5-100 | 30 | Distance in tiles for local chat |
+| Yell Range | 10-200 | 60 | Distance in tiles for yelling |
+| Enable Global Chat | boolean | true | Allow server-wide chat |
+| Enable Faction Chat | boolean | true | Allow faction chat |
+| Enable Safehouse Chat | boolean | true | Allow safehouse chat |
+| Enable Admin Chat | boolean | true | Allow admin-only chat |
+| Enable Private Messages | boolean | true | Allow direct messages |
+| Chat Slow Mode | 0-60 | 0 | Seconds between messages (0 = disabled) |
+
+**Note:** Local chat is always enabled and cannot be disabled - it serves as the default communication channel.
+
+### Settings in Code
+
+Default values in `ChatSystem/Definitions.lua`:
 
 ```lua
 ChatSystem.Settings = {
-    maxMessageLength = 500,  -- Max characters per message
-    maxMessagesStored = 200, -- Messages kept in history
-    localChatRange = 30,     -- Local chat range in tiles
-    yellRange = 60,          -- Yell range in tiles
+    maxMessageLength = 500,    -- Max characters per message
+    maxMessagesStored = 200,   -- Messages kept in history
+    localChatRange = 30,       -- Local chat range in tiles
+    yellRange = 60,            -- Yell range in tiles
+    enableGlobalChat = true,   -- Global chat toggle
+    enableFactionChat = true,  -- Faction chat toggle
+    enableSafehouseChat = true,-- Safehouse chat toggle
+    enableAdminChat = true,    -- Admin chat toggle
+    enablePrivateMessages = true, -- PM toggle
+    chatSlowMode = 0,          -- Rate limit (0 = disabled)
 }
 ```
 
@@ -216,6 +246,8 @@ local target, err = ChatSystem.Commands.Server.FindPlayer("john")
 
 - `ChatSystem.Events.OnMessageReceived` - Fired when a message is received
 - `ChatSystem.Events.OnChannelChanged` - Fired when the active channel changes
+- `ChatSystem.Events.OnTypingChanged` - Fired when typing indicators update
+- `ChatSystem.Events.OnSettingsChanged` - Fired when sandbox settings change (live updates)
 - `ChatSystem.Commands.Events.OnCommandExecuted` - Fired when a command is executed
 - `ChatSystem.Commands.Events.OnCommandFailed` - Fired when a command fails
 

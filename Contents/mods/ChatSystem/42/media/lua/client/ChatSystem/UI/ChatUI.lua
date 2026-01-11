@@ -125,6 +125,8 @@ function ISCustomChat:createChildren()
     self.textEntry:setAnchorRight(true)
     self.textEntry.onCommandEntered = ISCustomChat.onCommandEntered
     self.textEntry.onOtherKey = ISCustomChat.onOtherKey
+    self.textEntry.onPressDown = ISCustomChat.onPressDown
+    self.textEntry.onPressUp = ISCustomChat.onPressUp
     self.textEntry.onTextChange = ISCustomChat.onTextChange
     self.textEntry:setMaxLines(1)
     self.textEntry:setMaxTextLength(ChatSystem.Settings.maxMessageLength)
@@ -345,8 +347,8 @@ function ISCustomChat:createTabs()
         tabX = tabX + pmTabWidth + closeButtonSize + 2
     end
     
-    -- Create "+" button for new PM (only in multiplayer)
-    if isClient() or isServer() then
+    -- Create "+" button for new PM (only in multiplayer and if PMs are enabled)
+    if (isClient() or isServer()) and ChatSystem.Settings.enablePrivateMessages then
         self.newPmBtn = ISButton:new(tabX, tabY, newPmBtnWidth, self.tabHeight, "+", self, ISCustomChat.onNewPmClick)
         self.newPmBtn:initialise()
         self.newPmBtn:instantiate()
@@ -818,25 +820,46 @@ function ISCustomChat:onTextChange()
     end
 end
 
+-- Arrow key DOWN - navigate towards newer messages (lower index)
+function ISCustomChat:onPressDown()
+    local chat = ISCustomChat.instance
+    if not chat then return end
+    
+    chat.historyIndex = chat.historyIndex - 1
+    if chat.historyIndex < 0 then
+        chat.historyIndex = 0
+    end
+    
+    if chat.historyIndex > 0 and chat.commandHistory and chat.commandHistory[chat.historyIndex] then
+        chat.textEntry:setText(chat.commandHistory[chat.historyIndex])
+    else
+        chat.textEntry:setText("")
+    end
+end
+
+-- Arrow key UP - navigate towards older messages (higher index)
+function ISCustomChat:onPressUp()
+    local chat = ISCustomChat.instance
+    if not chat then return end
+    
+    if not chat.commandHistory or #chat.commandHistory == 0 then return end
+    
+    chat.historyIndex = chat.historyIndex + 1
+    if chat.historyIndex > #chat.commandHistory then
+        chat.historyIndex = #chat.commandHistory
+    end
+    
+    if chat.commandHistory[chat.historyIndex] then
+        chat.textEntry:setText(chat.commandHistory[chat.historyIndex])
+    end
+end
+
 function ISCustomChat:onOtherKey(key)
     local chat = ISCustomChat.instance
+    if not chat then return end
     
     if key == Keyboard.KEY_ESCAPE then
         chat:unfocus()
-    elseif key == Keyboard.KEY_UP then
-        -- History up
-        if #chat.commandHistory > 0 then
-            chat.historyIndex = math.min(chat.historyIndex + 1, #chat.commandHistory)
-            chat.textEntry:setText(chat.commandHistory[chat.historyIndex] or "")
-        end
-    elseif key == Keyboard.KEY_DOWN then
-        -- History down
-        chat.historyIndex = math.max(chat.historyIndex - 1, 0)
-        if chat.historyIndex > 0 then
-            chat.textEntry:setText(chat.commandHistory[chat.historyIndex] or "")
-        else
-            chat.textEntry:setText("")
-        end
     elseif key == Keyboard.KEY_TAB then
         -- Cycle channels
         chat:cycleChannel()
