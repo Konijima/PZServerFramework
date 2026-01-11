@@ -222,38 +222,47 @@ Commands.Register({
         end
         
         local displayName = getPlayerDisplayName(context.player)
+        local emoteText = "* " .. displayName .. " " .. action .. " *"
+        
+        -- Broadcast to the active channel as a styled message
         local msg = ChatSystem.CreateMessage(
-            ChatSystem.ChannelType.LOCAL,
+            context.channel,
             displayName,
-            "* " .. displayName .. " " .. action .. " *"
+            emoteText
         )
         msg.metadata.isEmote = true
         msg.color = { r = 1, g = 0.8, b = 0.5 } -- Orange for emotes
         
-        -- Send to nearby players using broadcast (works in both SP and MP)
+        -- Use the same broadcast logic as regular messages
         local chatSocket = KoniLib.Socket.of("/chat")
-        local x, y, z = context.player:getX(), context.player:getY(), context.player:getZ()
-        local range = ChatSystem.Settings.localChatRange
         
-        local onlinePlayers = getOnlinePlayers()
-        
-        -- SP mode: onlinePlayers is empty userdata or nil
-        if not onlinePlayers or onlinePlayers:size() == 0 then
-            chatSocket:to(context.player):emit("message", msg)
-            return
-        end
-        
-        -- MP mode: Send to players in range
-        for i = 0, onlinePlayers:size() - 1 do
-            local p = onlinePlayers:get(i)
-            local px, py, pz = p:getX(), p:getY(), p:getZ()
+        if context.channel == ChatSystem.ChannelType.LOCAL then
+            -- LOCAL: Send to nearby players
+            local x, y, z = context.player:getX(), context.player:getY(), context.player:getZ()
+            local range = ChatSystem.Settings.localChatRange
+            local onlinePlayers = getOnlinePlayers()
             
-            if math.abs(pz - z) <= 1 then
-                local dist = math.sqrt((px - x)^2 + (py - y)^2)
-                if dist <= range then
-                    chatSocket:to(p):emit("message", msg)
+            if not onlinePlayers or onlinePlayers:size() == 0 then
+                chatSocket:to(context.player):emit("message", msg)
+                return
+            end
+            
+            for i = 0, onlinePlayers:size() - 1 do
+                local p = onlinePlayers:get(i)
+                local px, py, pz = p:getX(), p:getY(), p:getZ()
+                if math.abs(pz - z) <= 1 then
+                    local dist = math.sqrt((px - x)^2 + (py - y)^2)
+                    if dist <= range then
+                        chatSocket:to(p):emit("message", msg)
+                    end
                 end
             end
+        elseif context.channel == ChatSystem.ChannelType.GLOBAL then
+            -- GLOBAL: Broadcast to all
+            chatSocket:broadcast():emit("message", msg)
+        else
+            -- Other channels (faction, safehouse, admin, staff, etc): Use Server.Broadcast
+            Server.Broadcast(emoteText, context.channel, context.player)
         end
     end
 })
@@ -299,7 +308,8 @@ Commands.Register({
         -- Execute kick
         target:getNetworkCharacter():kick(reason)
         
-        Server.Broadcast(targetName .. " was kicked: " .. reason)
+        -- Announce kick to all players (GLOBAL)
+        Server.Broadcast(targetName .. " was kicked: " .. reason, ChatSystem.ChannelType.GLOBAL)
         print("[ChatSystem.Commands] " .. context.username .. " kicked " .. targetName .. ": " .. reason)
     end
 })
@@ -465,27 +475,6 @@ Commands.Register({
         end
         
         Server.Broadcast(message, ChatSystem.ChannelType.GLOBAL)
-    end
-})
-
--- Save command (MP only)
--- Note: Full world save is not exposed to Lua API. Use RCON or server console instead.
-Commands.Register({
-    name = "save",
-    aliases = { "saveworld" },
-    description = "Trigger ModData save (full world save requires RCON/console)",
-    accessLevel = Commands.AccessLevel.OWNER,
-    category = "server",
-    handler = function(context)
-        if isServer() then
-            -- Full world save is not available via Lua API
-            -- We can only trigger ModData saves for mods
-            ModData.save()
-            Server.ReplySuccess(context.player, "ModData saved. For full world save, use RCON command 'save' or server console.", context.channel)
-            print("[ChatSystem.Commands] ModData saved by " .. context.username)
-        else
-            Server.ReplyError(context.player, "This command is only available on multiplayer servers", context.channel)
-        end
     end
 })
 
