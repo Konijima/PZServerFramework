@@ -155,23 +155,17 @@ function Client.OnMessageReceived(message)
     local player = getPlayer()
     local myUsername = player and player:getUsername() or ""
     
-    -- For LOCAL channel messages from ourselves, use vanilla processSay/processShout
-    -- This will trigger OnAddMessage which our OnVanillaMessage hook will handle
-    -- So we don't add to chat here to avoid duplicates
+    -- LOCAL channel messages from ourselves are handled via vanilla (processSay/processShout on ack)
+    -- They will appear via OnVanillaMessage hook, so skip them here
+    -- (We shouldn't even receive LOCAL messages via socket anymore, but just in case)
     if message.channel == ChatSystem.ChannelType.LOCAL and not message.isSystem then
         if message.author == myUsername then
-            -- Use vanilla functions for overhead text - they will also add to chat via OnVanillaMessage
-            if message.metadata and message.metadata.isYell then
-                processShoutMessage(message.text)
-            else
-                processSayMessage(message.text)
-            end
-            -- Don't add to our chat - OnVanillaMessage will handle it
+            -- Skip - will be handled by vanilla OnVanillaMessage
             return
         end
-        -- Messages from OTHER players in local chat - these come via socket
-        -- but vanilla won't show them, so we need to add them ourselves
-        -- (they already have overhead text from their own processSay/processShout)
+        -- Messages from OTHER players in local chat shouldn't come via socket
+        -- They come via vanilla OnAddMessage (from their processSay/processShout)
+        -- But if we do receive them, add to chat
     end
     
     -- Handle private messages differently
@@ -308,6 +302,15 @@ function Client.SendMessageDirect(text)
         metadata = metadata
     }, function(response)
         print("[ChatSystem] Client: Message response: " .. tostring(response and response.success))
+        -- For LOCAL chat, call vanilla processSay/processShout on successful ack
+        if response and response.success and response.isLocal then
+            local processedText = response.text or text
+            if response.isYell then
+                processShoutMessage(processedText)
+            else
+                processSayMessage(processedText)
+            end
+        end
     end)
 end
 
@@ -344,12 +347,22 @@ function Client.SendMessage(inputText)
     
     -- Send via socket
     print("[ChatSystem] Client: Sending message - channel: " .. tostring(channel) .. ", text: " .. tostring(text))
+    local sentText = text  -- Save for ack callback
     Client.socket:emit("message", {
         channel = channel,
         text = text,
         metadata = metadata
     }, function(response)
         print("[ChatSystem] Client: Message response: " .. tostring(response and response.success))
+        -- For LOCAL chat, call vanilla processSay/processShout on successful ack
+        if response and response.success and response.isLocal then
+            local processedText = response.text or sentText
+            if response.isYell then
+                processShoutMessage(processedText)
+            else
+                processSayMessage(processedText)
+            end
+        end
     end)
 end
 

@@ -376,21 +376,22 @@ chatSocket:onServer("message", function(player, data, context, ack)
     
     -- Determine recipients based on channel
     if channel == ChatSystem.ChannelType.LOCAL then
-        -- Send to players in range
-        local x, y, z = player:getX(), player:getY(), player:getZ()
-        local range = metadata.isYell and ChatSystem.Settings.yellRange or ChatSystem.Settings.localChatRange
-        local recipients = getPlayersInRange(x, y, z, range)
+        -- For LOCAL chat, don't emit anything back
+        -- The client will call processSayMessage/processShoutMessage on ack
+        -- which handles overhead text and vanilla broadcasts to nearby players
+        -- Other players will receive it via vanilla OnAddMessage hook
         
-        print("[ChatSystem] Server: LOCAL chat - found " .. tostring(#recipients) .. " recipients in range " .. tostring(range))
-        
-        if metadata.isYell then
-            message.metadata.isYell = true
+        -- Just acknowledge with the processed text (uppercase for yells, display name)
+        if ack then
+            ack({ 
+                success = true, 
+                messageId = message.id,
+                isLocal = true,
+                text = text,  -- Processed text (uppercased if yell)
+                isYell = metadata.isYell or false
+            })
         end
-        
-        for _, recipient in ipairs(recipients) do
-            print("[ChatSystem] Server: Sending to recipient: " .. tostring(recipient:getUsername()))
-            chatSocket:to(recipient):emit("message", message)
-        end
+        return  -- Don't emit, don't fall through to bottom ack
         
     elseif channel == ChatSystem.ChannelType.GLOBAL then
         -- Broadcast to all connected players
