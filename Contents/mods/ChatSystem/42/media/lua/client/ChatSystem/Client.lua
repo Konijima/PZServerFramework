@@ -454,11 +454,13 @@ function Client.GetAvailableChannels()
                 end
             end
             
-            -- Fallback: any non-none access level = staff
+            -- Fallback: check specific staff roles (not observer)
             if not isStaff then
                 local accessLevel = getAccessLevel and getAccessLevel()
-                if accessLevel and accessLevel ~= "" and string.lower(accessLevel) ~= "none" then
-                    isStaff = true
+                if accessLevel then
+                    local level = string.lower(accessLevel)
+                    -- Staff roles: admin, moderator, overseer, gm (NOT observer)
+                    isStaff = level == "admin" or level == "moderator" or level == "overseer" or level == "gm"
                 end
             end
             

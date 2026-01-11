@@ -177,7 +177,7 @@ local function isPlayerAdmin(player)
     return accessLevel and string.lower(accessLevel) == "admin"
 end
 
---- Check if player is staff (admin, moderator, or GM)
+--- Check if player is staff (admin, moderator, overseer, or GM)
 --- Uses capability check for SeePlayersConnected as indicator of staff role
 ---@param player IsoPlayer
 ---@return boolean
@@ -204,9 +204,14 @@ local function isPlayerStaff(player)
         end
     end
     
-    -- Check access level - any non-empty, non-"none" level is staff
+    -- Check access level - only specific staff roles (not observer)
     local accessLevel = player:getAccessLevel()
-    return accessLevel and accessLevel ~= "None" and accessLevel ~= "" and string.lower(accessLevel) ~= "none"
+    if accessLevel then
+        local level = string.lower(accessLevel)
+        -- Staff roles: admin, moderator, overseer, gm (NOT observer)
+        return level == "admin" or level == "moderator" or level == "overseer" or level == "gm"
+    end
+    return false
 end
 
 -- ==========================================================
