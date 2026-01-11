@@ -566,12 +566,6 @@ end
 -- Periodic update
 Events.EveryOneMinute.Add(updatePlayerData)
 
--- Send welcome message on player connect
-chatSocket:onServer("connect", function(player)
-    local welcomeMsg = ChatSystem.CreateSystemMessage("Welcome to the server! Use /g for global, /l for local chat.")
-    chatSocket:to(player):emit("message", welcomeMsg)
-end)
-
 -- ==========================================================
 -- Typing Indicators
 -- ==========================================================

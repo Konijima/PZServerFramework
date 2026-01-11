@@ -47,6 +47,11 @@ function Client.Connect()
                 Client.onlinePlayers = response.players
             end
         end)
+        
+        -- Show welcome message with keybinding
+        local chatKey = Keyboard.getKeyName(getCore():getKey("Toggle chat"))
+        local welcomeMsg = ChatSystem.CreateSystemMessage("Press '" .. chatKey .. "' to open chat. Use ALL CAPS or start with ! to yell. Type /help for commands.")
+        Client.OnMessageReceived(welcomeMsg)
     end)
     
     Client.socket:on("disconnect", function()
