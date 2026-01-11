@@ -169,15 +169,42 @@ function ISCustomChat:createChildren()
     
     -- Register for settings change events (live sandbox option updates)
     ChatSystem.Events.OnSettingsChanged:Add(function(settings)
-        print("[ChatSystem] UI: Settings changed, rebuilding tabs")
+        print("[ChatSystem] UI: Settings changed, updating UI")
+        -- Update text entry max length
+        if self.textEntry and settings.maxMessageLength then
+            self.textEntry:setMaxTextLength(settings.maxMessageLength)
+        end
+        self:ensureValidChannel()
         self:createTabs()
         self:updateTabs()
         self:rebuildText()
     end)
     
     -- Initial state
+    self:ensureValidChannel()
     self:updateTabs()
     self:unfocus()
+end
+
+--- Ensure current channel is still available, switch to first available if not
+function ISCustomChat:ensureValidChannel()
+    local currentChannel = (ChatSystem.Client and ChatSystem.Client.currentChannel) or "local"
+    local availableChannels = (ChatSystem.Client and ChatSystem.Client.GetAvailableChannels and ChatSystem.Client.GetAvailableChannels()) or { "local" }
+    
+    -- Check if current channel is still available
+    local isAvailable = false
+    for _, channel in ipairs(availableChannels) do
+        if channel == currentChannel then
+            isAvailable = true
+            break
+        end
+    end
+    
+    -- If not available, switch to first available channel
+    if not isAvailable and #availableChannels > 0 then
+        print("[ChatSystem] Current channel '" .. tostring(currentChannel) .. "' is no longer available, switching to '" .. tostring(availableChannels[1]) .. "'")
+        ChatSystem.Client.SetChannel(availableChannels[1])
+    end
 end
 
 -- ==========================================================

@@ -183,32 +183,77 @@ chatSocket:use(Socket.MIDDLEWARE.DISCONNECT, function(player, context, next, rej
     next()
 end)
 
+-- Track last message time for slow mode
+local lastMessageTime = {} -- { [username] = timestamp }
+
 -- Emit middleware - validate messages
 chatSocket:use(Socket.MIDDLEWARE.EMIT, function(player, event, data, context, next, reject)
     -- Only validate "message" events
     if event == "message" then
+        local username = player:getUsername()
+        local channel = data.channel or ChatSystem.ChannelType.LOCAL
+        
         -- Validate message length
         if data.text and #data.text > ChatSystem.Settings.maxMessageLength then
             reject("Message too long")
             return
         end
         
-        -- Validate channel access
-        local channel = data.channel or ChatSystem.ChannelType.LOCAL
+        -- Check if channel is enabled
+        if channel == ChatSystem.ChannelType.GLOBAL and not ChatSystem.Settings.enableGlobalChat then
+            reject("Global chat is disabled")
+            return
+        end
         
-        if channel == ChatSystem.ChannelType.ADMIN and not playerData[player:getUsername()].isAdmin then
+        if channel == ChatSystem.ChannelType.FACTION and not ChatSystem.Settings.enableFactionChat then
+            reject("Faction chat is disabled")
+            return
+        end
+        
+        if channel == ChatSystem.ChannelType.SAFEHOUSE and not ChatSystem.Settings.enableSafehouseChat then
+            reject("Safehouse chat is disabled")
+            return
+        end
+        
+        if channel == ChatSystem.ChannelType.ADMIN and not ChatSystem.Settings.enableAdminChat then
+            reject("Admin chat is disabled")
+            return
+        end
+        
+        if channel == ChatSystem.ChannelType.PRIVATE and not ChatSystem.Settings.enablePrivateMessages then
+            reject("Private messages are disabled")
+            return
+        end
+        
+        -- Validate channel access (membership/permissions)
+        if channel == ChatSystem.ChannelType.ADMIN and not playerData[username].isAdmin then
             reject("No access to admin chat")
             return
         end
         
-        if channel == ChatSystem.ChannelType.FACTION and not playerData[player:getUsername()].faction then
+        if channel == ChatSystem.ChannelType.FACTION and not playerData[username].faction then
             reject("You are not in a faction")
             return
         end
         
-        if channel == ChatSystem.ChannelType.SAFEHOUSE and not playerData[player:getUsername()].safehouseId then
+        if channel == ChatSystem.ChannelType.SAFEHOUSE and not playerData[username].safehouseId then
             reject("You don't have a safehouse")
             return
+        end
+        
+        -- Check slow mode (skip for admins)
+        if ChatSystem.Settings.chatSlowMode > 0 and not playerData[username].isAdmin then
+            local now = getTimestampMs()
+            local lastTime = lastMessageTime[username] or 0
+            local cooldownMs = ChatSystem.Settings.chatSlowMode * 1000
+            
+            if now - lastTime < cooldownMs then
+                local remaining = math.ceil((cooldownMs - (now - lastTime)) / 1000)
+                reject("Slow mode: wait " .. remaining .. " second(s)")
+                return
+            end
+            
+            lastMessageTime[username] = now
         end
     end
     

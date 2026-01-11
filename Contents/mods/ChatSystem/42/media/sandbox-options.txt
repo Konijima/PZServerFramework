@@ -48,14 +48,6 @@ option ChatSystem.EnableGlobalChat
     translation = ChatSystem_EnableGlobalChat,
 }
 
-option ChatSystem.EnableLocalChat
-{
-    type = boolean,
-    default = true,
-    page = ChatSystem,
-    translation = ChatSystem_EnableLocalChat,
-}
-
 option ChatSystem.EnableFactionChat
 {
     type = boolean,
@@ -88,24 +80,6 @@ option ChatSystem.EnablePrivateMessages
     translation = ChatSystem_EnablePrivateMessages,
 }
 
-option ChatSystem.ShowTimestamps
-{
-    type = boolean,
-    default = true,
-    page = ChatSystem,
-    translation = ChatSystem_ShowTimestamps,
-}
-
-option ChatSystem.TimestampFormat
-{
-    type = enum,
-    numValues = 3,
-    default = 1,
-    page = ChatSystem,
-    translation = ChatSystem_TimestampFormat,
-    valueTranslation = ChatSystem_TimestampFormat,
-}
-
 option ChatSystem.ChatSlowMode
 {
     type = integer,
@@ -114,12 +88,4 @@ option ChatSystem.ChatSlowMode
     default = 0,
     page = ChatSystem,
     translation = ChatSystem_ChatSlowMode,
-}
-
-option ChatSystem.AllowColoredMessages
-{
-    type = boolean,
-    default = false,
-    page = ChatSystem,
-    translation = ChatSystem_AllowColoredMessages,
 }

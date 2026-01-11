@@ -340,10 +340,24 @@ end
 -- Channel Management
 -- ==========================================================
 
+--- Check if a channel is currently available
+---@param channel string
+---@return boolean
+function Client.IsChannelAvailable(channel)
+    local available = Client.GetAvailableChannels()
+    for _, ch in ipairs(available) do
+        if ch == channel then
+            return true
+        end
+    end
+    return false
+end
+
 --- Set the current default channel
 ---@param channel string
 function Client.SetChannel(channel)
-    if ChatSystem.ChannelColors[channel] then
+    -- Only allow setting to available channels
+    if ChatSystem.ChannelColors[channel] and Client.IsChannelAvailable(channel) then
         Client.currentChannel = channel
         ChatSystem.Events.OnChannelChanged:Trigger(channel)
     end
@@ -352,23 +366,22 @@ end
 --- Get available channels for the current player
 ---@return table Array of channel types
 function Client.GetAvailableChannels()
-    -- In singleplayer, only local chat makes sense
-    if not isClient() and not isServer() then
-        return { ChatSystem.ChannelType.LOCAL }
-    end
-    
     local channels = {}
     local settings = ChatSystem.Settings
+    
+    -- In singleplayer, only local chat makes sense
+    if not isClient() and not isServer() then
+        table.insert(channels, ChatSystem.ChannelType.LOCAL)
+        return channels
+    end
     
     -- Add global chat if enabled
     if settings.enableGlobalChat then
         table.insert(channels, ChatSystem.ChannelType.GLOBAL)
     end
     
-    -- Add local chat if enabled
-    if settings.enableLocalChat then
-        table.insert(channels, ChatSystem.ChannelType.LOCAL)
-    end
+    -- Local chat is always available
+    table.insert(channels, ChatSystem.ChannelType.LOCAL)
     
     local player = getPlayer()
     if player then

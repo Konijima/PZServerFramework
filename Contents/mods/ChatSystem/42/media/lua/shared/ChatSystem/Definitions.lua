@@ -104,19 +104,13 @@ ChatSystem.Settings = {
     
     -- Channel toggles
     enableGlobalChat = true,
-    enableLocalChat = true,
     enableFactionChat = true,
     enableSafehouseChat = true,
     enableAdminChat = true,
     enablePrivateMessages = true,
     
-    -- UI
-    showTimestamps = true,
-    timestampFormat = 1, -- 1 = 12-hour, 2 = 24-hour, 3 = short
-    
     -- Moderation
     chatSlowMode = 0, -- seconds between messages (0 = disabled)
-    allowColoredMessages = false,
 }
 
 -- Cache of last loaded sandbox values for change detection
@@ -171,19 +165,13 @@ function ChatSystem.LoadSandboxSettings(silent)
     
     -- Channel toggles
     if sv.EnableGlobalChat ~= nil then ChatSystem.Settings.enableGlobalChat = sv.EnableGlobalChat end
-    if sv.EnableLocalChat ~= nil then ChatSystem.Settings.enableLocalChat = sv.EnableLocalChat end
     if sv.EnableFactionChat ~= nil then ChatSystem.Settings.enableFactionChat = sv.EnableFactionChat end
     if sv.EnableSafehouseChat ~= nil then ChatSystem.Settings.enableSafehouseChat = sv.EnableSafehouseChat end
     if sv.EnableAdminChat ~= nil then ChatSystem.Settings.enableAdminChat = sv.EnableAdminChat end
     if sv.EnablePrivateMessages ~= nil then ChatSystem.Settings.enablePrivateMessages = sv.EnablePrivateMessages end
     
-    -- UI
-    if sv.ShowTimestamps ~= nil then ChatSystem.Settings.showTimestamps = sv.ShowTimestamps end
-    if sv.TimestampFormat then ChatSystem.Settings.timestampFormat = sv.TimestampFormat end
-    
     -- Moderation
     if sv.ChatSlowMode then ChatSystem.Settings.chatSlowMode = sv.ChatSlowMode end
-    if sv.AllowColoredMessages ~= nil then ChatSystem.Settings.allowColoredMessages = sv.AllowColoredMessages end
     
     -- Check if settings changed
     local changed = not valuesEqual(prevSettings, ChatSystem.Settings)
