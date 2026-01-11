@@ -177,11 +177,6 @@ end
 -- ==========================================================
 
 function ISCustomChat:createTabs()
-    -- Safety check
-    if not ChatSystem or not ChatSystem.ChannelType then
-        return
-    end
-    
     local th = self:titleBarHeight()
     local padding = 5
     local tabY = th + padding
@@ -407,14 +402,9 @@ function ISCustomChat:onClosePmTab(username)
 end
 
 function ISCustomChat:updateTabs()
-    -- Safety check
-    if not ChatSystem or not ChatSystem.ChannelType then
-        return
-    end
-    
-    local currentChannel = (ChatSystem.Client and ChatSystem.Client.currentChannel) or ChatSystem.ChannelType.LOCAL
+    local currentChannel = (ChatSystem.Client and ChatSystem.Client.currentChannel) or "local"
     local activeConversation = ChatSystem.Client and ChatSystem.Client.activeConversation
-    local pmColor = (ChatSystem.ChannelColors and ChatSystem.ChannelColors[ChatSystem.ChannelType.PRIVATE]) or { r = 0.8, g = 0.5, b = 0.8 }
+    local pmColor = (ChatSystem.ChannelColors and ChatSystem.ChannelColors["private"]) or { r = 0.8, g = 0.5, b = 0.8 }
     
     -- Update channel tabs
     for channel, tab in pairs(self.tabs) do
@@ -524,10 +514,10 @@ function ISCustomChat:addMessage(message)
     end
     
     -- Track unread messages for non-active channels or PM conversations
-    local currentChannel = ChatSystem.Client and ChatSystem.Client.currentChannel or ChatSystem.ChannelType.LOCAL
+    local currentChannel = (ChatSystem.Client and ChatSystem.Client.currentChannel) or "local"
     local activeConversation = ChatSystem.Client and ChatSystem.Client.activeConversation
     
-    if message.channel == ChatSystem.ChannelType.PRIVATE then
+    if message.channel == "private" then
         -- For PM messages, check if this is the active conversation
         local myUsername = getPlayer() and getPlayer():getUsername() or ""
         local otherPerson = message.author
@@ -602,7 +592,7 @@ function ISCustomChat:rebuildText()
     local vscroll = self.chatText.vscroll
     local scrolledToBottom = (self.chatText:getScrollHeight() <= self.chatText:getHeight()) or (vscroll and vscroll.pos == 1)
     
-    local currentChannel = ChatSystem.Client and ChatSystem.Client.currentChannel or ChatSystem.ChannelType.LOCAL
+    local currentChannel = (ChatSystem.Client and ChatSystem.Client.currentChannel) or "local"
     local activeConversation = ChatSystem.Client and ChatSystem.Client.activeConversation
     local myUsername = getPlayer() and getPlayer():getUsername() or ""
     local lines = {}
@@ -618,11 +608,11 @@ function ISCustomChat:rebuildText()
         for _, message in ipairs(self.messages) do
             local showMessage = message.channel == currentChannel
             -- Always show system messages from global channel (announcements, etc.)
-            if message.isSystem and message.channel == ChatSystem.ChannelType.GLOBAL then
+            if message.isSystem and message.channel == "global" then
                 showMessage = true
             end
             -- Don't show PMs in regular channel tabs
-            if message.channel == ChatSystem.ChannelType.PRIVATE then
+            if message.channel == "private" then
                 showMessage = false
             end
             if showMessage then
@@ -708,7 +698,7 @@ function ISCustomChat:onTextChange()
         local activeConversation = ChatSystem.Client.activeConversation
         if activeConversation then
             -- In a PM conversation, send typing to that specific person
-            ChatSystem.Client.StartTyping(ChatSystem.ChannelType.PRIVATE, activeConversation)
+            ChatSystem.Client.StartTyping("private", activeConversation)
         else
             -- Parse to detect which channel user is typing in
             local channel, _, _ = ChatSystem.Client.ParseInput(text)
@@ -928,14 +918,14 @@ function ISCustomChat:updateTypingIndicator(channel, users, target)
     local key = channel
     
     -- For PM typing, use a special key based on the typer (who is typing to me)
-    if channel == ChatSystem.ChannelType.PRIVATE and target then
+    if channel == "private" and target then
         -- When someone is typing a PM to me, target is my username
         -- We need to store it by who is typing
         -- The "users" array contains who is typing
         if #users > 0 then
             key = "pm:" .. users[1]  -- The person typing to me
         end
-    elseif channel == ChatSystem.ChannelType.PRIVATE then
+    elseif channel == "private" then
         -- Store by channel if no specific target
         key = channel
     end
@@ -948,11 +938,8 @@ function ISCustomChat:updateTypingIndicator(channel, users, target)
 end
 
 function ISCustomChat:refreshTypingLabel()
-    -- Safety check - ensure ChatSystem is loaded
-    if not ChatSystem or not ChatSystem.ChannelType then
-        if self.typingLabel then
-            self.typingLabel:setVisible(false)
-        end
+    -- Safety check - ensure typingLabel exists
+    if not self.typingLabel then
         return
     end
     
@@ -964,10 +951,10 @@ function ISCustomChat:refreshTypingLabel()
         -- Check PM typing for this conversation
         local pmKey = "pm:" .. activeConversation
         users = self.typingUsers[pmKey] or {}
-        color = (ChatSystem.ChannelColors and ChatSystem.ChannelColors[ChatSystem.ChannelType.PRIVATE]) or { r = 0.8, g = 0.5, b = 0.8 }
+        color = (ChatSystem.ChannelColors and ChatSystem.ChannelColors["private"]) or { r = 0.8, g = 0.5, b = 0.8 }
     else
         -- Check channel typing
-        local channel = (ChatSystem.Client and ChatSystem.Client.currentChannel) or (ChatSystem.ChannelType and ChatSystem.ChannelType.LOCAL) or "local"
+        local channel = (ChatSystem.Client and ChatSystem.Client.currentChannel) or "local"
         users = self.typingUsers[channel] or {}
         color = (ChatSystem.ChannelColors and ChatSystem.ChannelColors[channel]) or { r = 0.6, g = 0.6, b = 0.6 }
     end
@@ -1016,7 +1003,7 @@ function ISCustomChat:prerender()
         self.flashTimer = 0
         self.flashState = not self.flashState
         
-        local pmColor = ChatSystem.ChannelColors[ChatSystem.ChannelType.PRIVATE] or { r = 0.8, g = 0.5, b = 0.8 }
+        local pmColor = (ChatSystem.ChannelColors and ChatSystem.ChannelColors["private"]) or { r = 0.8, g = 0.5, b = 0.8 }
         
         -- Update flashing tabs
         for key, isFlashing in pairs(self.flashingTabs) do
