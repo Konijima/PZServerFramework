@@ -1,4 +1,10 @@
+-- ChatSystem is multiplayer only
 if isServer() then return end
+if not isClient() then 
+    print("[ChatSystem] Client: Skipping - singleplayer mode")
+    return 
+end
+
 require "ChatSystem/Definitions"
 local Socket = require("KoniLib/Socket")
 
@@ -295,13 +301,12 @@ function Client.SendMessageDirect(text)
     end
     
     -- Send via socket
-    print("[ChatSystem] Client: Sending message - channel: " .. tostring(channel) .. ", text: " .. tostring(text))
+    print("[ChatSystem] Client: SendMessageDirect - channel: " .. tostring(channel) .. ", text: " .. tostring(text))
     Client.socket:emit("message", {
         channel = channel,
         text = text,
         metadata = metadata
     }, function(response)
-        print("[ChatSystem] Client: Message response: " .. tostring(response and response.success))
         -- For LOCAL chat, call vanilla processSay/processShout on successful ack
         if response and response.success and response.isLocal then
             local processedText = response.text or text
@@ -346,17 +351,15 @@ function Client.SendMessage(inputText)
     end
     
     -- Send via socket
-    print("[ChatSystem] Client: Sending message - channel: " .. tostring(channel) .. ", text: " .. tostring(text))
-    local sentText = text  -- Save for ack callback
+    print("[ChatSystem] Client: SendMessage - channel: " .. tostring(channel) .. ", text: " .. tostring(text))
     Client.socket:emit("message", {
         channel = channel,
         text = text,
         metadata = metadata
     }, function(response)
-        print("[ChatSystem] Client: Message response: " .. tostring(response and response.success))
         -- For LOCAL chat, call vanilla processSay/processShout on successful ack
         if response and response.success and response.isLocal then
-            local processedText = response.text or sentText
+            local processedText = response.text or text
             if response.isYell then
                 processShoutMessage(processedText)
             else
@@ -399,12 +402,6 @@ function Client.GetAvailableChannels()
     local channels = {}
     local settings = ChatSystem.Settings
     
-    -- In singleplayer, only local chat makes sense
-    if not isClient() and not isServer() then
-        table.insert(channels, ChatSystem.ChannelType.LOCAL)
-        return channels
-    end
-    
     -- Add global chat if enabled
     if settings.enableGlobalChat then
         table.insert(channels, ChatSystem.ChannelType.GLOBAL)
@@ -438,27 +435,25 @@ function Client.GetAvailableChannels()
         if settings.enableStaffChat then
             local isStaff = false
             
-            -- Check role capabilities in multiplayer (SeePlayersConnected or AnswerTickets = staff)
-            if isClient() then
-                local role = player:getRole()
-                if role and Capability then
-                    -- Admin power means staff
-                    local success, hasAdmin = pcall(function()
-                        return role:hasAdminPower()
+            -- Check role capabilities (SeePlayersConnected or AnswerTickets = staff)
+            local role = player:getRole()
+            if role and Capability then
+                -- Admin power means staff
+                local success, hasAdmin = pcall(function()
+                    return role:hasAdminPower()
+                end)
+                if success and hasAdmin then
+                    isStaff = true
+                end
+                
+                -- Staff capabilities
+                if not isStaff then
+                    local success2, hasStaffCap = pcall(function()
+                        return role:hasCapability(Capability.SeePlayersConnected) or
+                               role:hasCapability(Capability.AnswerTickets)
                     end)
-                    if success and hasAdmin then
+                    if success2 and hasStaffCap then
                         isStaff = true
-                    end
-                    
-                    -- Staff capabilities
-                    if not isStaff then
-                        local success2, hasStaffCap = pcall(function()
-                            return role:hasCapability(Capability.SeePlayersConnected) or
-                                   role:hasCapability(Capability.AnswerTickets)
-                        end)
-                        if success2 and hasStaffCap then
-                            isStaff = true
-                        end
                     end
                 end
             end
@@ -684,14 +679,12 @@ local function OnVanillaMessage(message, tabID)
 end
 
 local function OnGameStart()
-    if isClient() or not isServer() then
-        Client.Connect()
-        
-        -- Hook vanilla chat messages to capture yells, server announcements, etc.
-        Events.OnAddMessage.Add(OnVanillaMessage)
-    end
+    Client.Connect()
+    
+    -- Hook vanilla chat messages to capture yells, server announcements, etc.
+    Events.OnAddMessage.Add(OnVanillaMessage)
 end
 
 Events.OnGameStart.Add(OnGameStart)
 
-print("[ChatSystem] Client Loaded")
+print("[ChatSystem] Client Loaded (multiplayer)")

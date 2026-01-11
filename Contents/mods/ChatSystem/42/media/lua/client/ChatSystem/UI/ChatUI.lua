@@ -1,3 +1,9 @@
+-- ChatSystem UI is multiplayer only
+if not isClient() then 
+    print("[ChatSystem] UI: Skipping - singleplayer mode")
+    return 
+end
+
 require "ISUI/ISCollapsableWindow"
 require "ISUI/ISRichTextPanel"
 require "ISUI/ISButton"

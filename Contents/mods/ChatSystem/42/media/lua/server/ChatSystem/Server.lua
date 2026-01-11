@@ -1,4 +1,9 @@
+-- ChatSystem Server is multiplayer only
 if isClient() then return end
+if not isServer() then 
+    print("[ChatSystem] Server: Skipping - singleplayer mode")
+    return 
+end
 
 require "ChatSystem/Definitions"
 local Socket = require("KoniLib/Socket")
@@ -156,11 +161,6 @@ end
 ---@param player IsoPlayer
 ---@return boolean
 local function isPlayerAdmin(player)
-    -- In singleplayer, player is always "admin"
-    if not isClient() and not isServer() then
-        return true
-    end
-    
     -- Only "admin" access level can access admin chat (not moderator, observer, etc.)
     local accessLevel = player:getAccessLevel()
     return accessLevel and string.lower(accessLevel) == "admin"
@@ -171,11 +171,6 @@ end
 ---@param player IsoPlayer
 ---@return boolean
 local function isPlayerStaff(player)
-    -- In singleplayer, player is always "staff"
-    if not isClient() and not isServer() then
-        return true
-    end
-    
     -- Admins are always staff
     if isPlayerAdmin(player) then
         return true
@@ -714,14 +709,8 @@ function Server.BroadcastSystemMessage(text, color)
 end
 
 -- Player connected/initialized on server
--- Note: In SP, this is only called from the server-side event handler
 local function OnPlayerInit(playerIndex, player, isRespawn)
     if not player then return end
-    
-    -- Skip join/respawn messages in singleplayer (no need to announce to yourself)
-    if not isClient() and not isServer() then
-        return
-    end
     
     local username = player:getUsername()
     

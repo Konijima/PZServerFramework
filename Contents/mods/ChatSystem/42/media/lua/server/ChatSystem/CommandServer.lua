@@ -1,4 +1,6 @@
+-- ChatSystem commands are multiplayer only
 if isClient() then return end
+if not isServer() then return end
 
 require "ChatSystem/Definitions"
 require "ChatSystem/CommandAPI"
