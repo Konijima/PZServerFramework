@@ -177,6 +177,11 @@ end
 -- ==========================================================
 
 function ISCustomChat:createTabs()
+    -- Safety check
+    if not ChatSystem or not ChatSystem.ChannelType then
+        return
+    end
+    
     local th = self:titleBarHeight()
     local padding = 5
     local tabY = th + padding
@@ -189,6 +194,9 @@ function ISCustomChat:createTabs()
     
     -- Remove existing PM tabs
     for _, tab in pairs(self.pmTabs) do
+        if tab.closeBtn then
+            self:removeChild(tab.closeBtn)
+        end
         self:removeChild(tab)
     end
     self.pmTabs = {}
@@ -199,8 +207,9 @@ function ISCustomChat:createTabs()
         self.newPmBtn = nil
     end
     
-    local channels = ChatSystem.Client.GetAvailableChannels()
-    local conversations = ChatSystem.Client.GetConversations()
+    local defaultChannels = { "local", "global" }
+    local channels = (ChatSystem.Client and ChatSystem.Client.GetAvailableChannels and ChatSystem.Client.GetAvailableChannels()) or defaultChannels
+    local conversations = (ChatSystem.Client and ChatSystem.Client.GetConversations and ChatSystem.Client.GetConversations()) or {}
     
     -- Count total tabs needed
     local numConversations = 0
@@ -231,14 +240,14 @@ function ISCustomChat:createTabs()
     -- Create channel tabs
     for i, channel in ipairs(channels) do
         local shortNames = {
-            [ChatSystem.ChannelType.LOCAL] = "Local",
-            [ChatSystem.ChannelType.GLOBAL] = "Global",
-            [ChatSystem.ChannelType.FACTION] = "Fac",
-            [ChatSystem.ChannelType.SAFEHOUSE] = "Safe",
-            [ChatSystem.ChannelType.ADMIN] = "Admin",
-            [ChatSystem.ChannelType.RADIO] = "Radio",
+            ["local"] = "Local",
+            ["global"] = "Global",
+            ["faction"] = "Fac",
+            ["safehouse"] = "Safe",
+            ["admin"] = "Admin",
+            ["radio"] = "Radio",
         }
-        local tabName = shortNames[channel] or channel:sub(1, 5)
+        local tabName = shortNames[channel] or (type(channel) == "string" and channel:sub(1, 5) or "???")
         
         local tab = ISButton:new(tabX, tabY, tabWidth, self.tabHeight, tabName, self, ISCustomChat.onTabClick)
         tab:initialise()
@@ -398,14 +407,19 @@ function ISCustomChat:onClosePmTab(username)
 end
 
 function ISCustomChat:updateTabs()
-    local currentChannel = ChatSystem.Client.currentChannel
-    local activeConversation = ChatSystem.Client.activeConversation
-    local pmColor = ChatSystem.ChannelColors[ChatSystem.ChannelType.PRIVATE]
+    -- Safety check
+    if not ChatSystem or not ChatSystem.ChannelType then
+        return
+    end
+    
+    local currentChannel = (ChatSystem.Client and ChatSystem.Client.currentChannel) or ChatSystem.ChannelType.LOCAL
+    local activeConversation = ChatSystem.Client and ChatSystem.Client.activeConversation
+    local pmColor = (ChatSystem.ChannelColors and ChatSystem.ChannelColors[ChatSystem.ChannelType.PRIVATE]) or { r = 0.8, g = 0.5, b = 0.8 }
     
     -- Update channel tabs
     for channel, tab in pairs(self.tabs) do
         if tab.isChannel then
-            local color = ChatSystem.ChannelColors[channel] or { r = 1, g = 1, b = 1 }
+            local color = (ChatSystem.ChannelColors and ChatSystem.ChannelColors[channel]) or { r = 1, g = 1, b = 1 }
             local isActive = (channel == currentChannel and not activeConversation)
             
             if isActive then
@@ -423,14 +437,14 @@ function ISCustomChat:updateTabs()
             -- Update title with unread count
             local unread = self.unreadMessages[channel] or 0
             local shortNames = {
-                [ChatSystem.ChannelType.LOCAL] = "Local",
-                [ChatSystem.ChannelType.GLOBAL] = "Global",
-                [ChatSystem.ChannelType.FACTION] = "Fac",
-                [ChatSystem.ChannelType.SAFEHOUSE] = "Safe",
-                [ChatSystem.ChannelType.ADMIN] = "Admin",
-                [ChatSystem.ChannelType.RADIO] = "Radio",
+                ["local"] = "Local",
+                ["global"] = "Global",
+                ["faction"] = "Fac",
+                ["safehouse"] = "Safe",
+                ["admin"] = "Admin",
+                ["radio"] = "Radio",
             }
-            local tabName = shortNames[channel] or channel:sub(1, 5)
+            local tabName = shortNames[channel] or (type(channel) == "string" and channel:sub(1, 5) or "???")
             
             if unread > 0 and not isActive then
                 tab:setTitle(tabName .. "(" .. (unread > 9 and "9+" or unread) .. ")")
@@ -458,7 +472,7 @@ function ISCustomChat:updateTabs()
         end
         
         -- Update title with unread count
-        local convData = ChatSystem.Client.conversations[username]
+        local convData = ChatSystem.Client and ChatSystem.Client.conversations and ChatSystem.Client.conversations[username]
         local unread = convData and convData.unread or 0
         local displayName = username:sub(1, 6)
         if #username > 6 then
@@ -478,7 +492,7 @@ end
 
 function ISCustomChat:refreshTabs()
     -- Check if we need to add new PM tabs
-    local conversations = ChatSystem.Client.GetConversations()
+    local conversations = ChatSystem.Client and ChatSystem.Client.GetConversations and ChatSystem.Client.GetConversations() or {}
     local needsRebuild = false
     
     for username, _ in pairs(conversations) do
@@ -510,8 +524,8 @@ function ISCustomChat:addMessage(message)
     end
     
     -- Track unread messages for non-active channels or PM conversations
-    local currentChannel = ChatSystem.Client.currentChannel
-    local activeConversation = ChatSystem.Client.activeConversation
+    local currentChannel = ChatSystem.Client and ChatSystem.Client.currentChannel or ChatSystem.ChannelType.LOCAL
+    local activeConversation = ChatSystem.Client and ChatSystem.Client.activeConversation
     
     if message.channel == ChatSystem.ChannelType.PRIVATE then
         -- For PM messages, check if this is the active conversation
@@ -588,14 +602,14 @@ function ISCustomChat:rebuildText()
     local vscroll = self.chatText.vscroll
     local scrolledToBottom = (self.chatText:getScrollHeight() <= self.chatText:getHeight()) or (vscroll and vscroll.pos == 1)
     
-    local currentChannel = ChatSystem.Client.currentChannel
-    local activeConversation = ChatSystem.Client.activeConversation
+    local currentChannel = ChatSystem.Client and ChatSystem.Client.currentChannel or ChatSystem.ChannelType.LOCAL
+    local activeConversation = ChatSystem.Client and ChatSystem.Client.activeConversation
     local myUsername = getPlayer() and getPlayer():getUsername() or ""
     local lines = {}
     
     if activeConversation then
         -- Show PM conversation messages
-        local conversationMessages = ChatSystem.Client.GetConversationMessages(activeConversation)
+        local conversationMessages = ChatSystem.Client and ChatSystem.Client.GetConversationMessages and ChatSystem.Client.GetConversationMessages(activeConversation) or {}
         for _, message in ipairs(conversationMessages) do
             table.insert(lines, self:formatMessage(message))
         end
@@ -934,7 +948,15 @@ function ISCustomChat:updateTypingIndicator(channel, users, target)
 end
 
 function ISCustomChat:refreshTypingLabel()
-    local activeConversation = ChatSystem.Client.activeConversation
+    -- Safety check - ensure ChatSystem is loaded
+    if not ChatSystem or not ChatSystem.ChannelType then
+        if self.typingLabel then
+            self.typingLabel:setVisible(false)
+        end
+        return
+    end
+    
+    local activeConversation = ChatSystem.Client and ChatSystem.Client.activeConversation
     local users = {}
     local color
     
@@ -942,12 +964,12 @@ function ISCustomChat:refreshTypingLabel()
         -- Check PM typing for this conversation
         local pmKey = "pm:" .. activeConversation
         users = self.typingUsers[pmKey] or {}
-        color = ChatSystem.ChannelColors[ChatSystem.ChannelType.PRIVATE] or { r = 0.8, g = 0.5, b = 0.8 }
+        color = (ChatSystem.ChannelColors and ChatSystem.ChannelColors[ChatSystem.ChannelType.PRIVATE]) or { r = 0.8, g = 0.5, b = 0.8 }
     else
         -- Check channel typing
-        local channel = ChatSystem.Client.currentChannel
+        local channel = (ChatSystem.Client and ChatSystem.Client.currentChannel) or (ChatSystem.ChannelType and ChatSystem.ChannelType.LOCAL) or "local"
         users = self.typingUsers[channel] or {}
-        color = ChatSystem.ChannelColors[channel] or { r = 0.6, g = 0.6, b = 0.6 }
+        color = (ChatSystem.ChannelColors and ChatSystem.ChannelColors[channel]) or { r = 0.6, g = 0.6, b = 0.6 }
     end
     
     if #users == 0 then
