@@ -167,6 +167,14 @@ function ISCustomChat:createChildren()
         self:updateTypingIndicator(channel, users, target)
     end)
     
+    -- Register for settings change events (live sandbox option updates)
+    ChatSystem.Events.OnSettingsChanged:Add(function(settings)
+        print("[ChatSystem] UI: Settings changed, rebuilding tabs")
+        self:createTabs()
+        self:updateTabs()
+        self:rebuildText()
+    end)
+    
     -- Initial state
     self:updateTabs()
     self:unfocus()

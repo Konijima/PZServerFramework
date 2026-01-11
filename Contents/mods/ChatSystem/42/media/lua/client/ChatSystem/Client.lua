@@ -357,27 +357,37 @@ function Client.GetAvailableChannels()
         return { ChatSystem.ChannelType.LOCAL }
     end
     
-    local channels = {
-        ChatSystem.ChannelType.GLOBAL,
-        ChatSystem.ChannelType.LOCAL,
-    }
+    local channels = {}
+    local settings = ChatSystem.Settings
+    
+    -- Add global chat if enabled
+    if settings.enableGlobalChat then
+        table.insert(channels, ChatSystem.ChannelType.GLOBAL)
+    end
+    
+    -- Add local chat if enabled
+    if settings.enableLocalChat then
+        table.insert(channels, ChatSystem.ChannelType.LOCAL)
+    end
     
     local player = getPlayer()
     if player then
-        -- Check faction
-        if Faction and Faction.getPlayerFaction and Faction.getPlayerFaction(player) then
+        -- Check faction (only if faction chat is enabled and player is in a faction)
+        if settings.enableFactionChat and Faction and Faction.getPlayerFaction and Faction.getPlayerFaction(player) then
             table.insert(channels, ChatSystem.ChannelType.FACTION)
         end
         
-        -- Check safehouse
-        if SafeHouse and SafeHouse.hasSafehouse and SafeHouse.hasSafehouse(player) then
+        -- Check safehouse (only if safehouse chat is enabled and player has a safehouse)
+        if settings.enableSafehouseChat and SafeHouse and SafeHouse.hasSafehouse and SafeHouse.hasSafehouse(player) then
             table.insert(channels, ChatSystem.ChannelType.SAFEHOUSE)
         end
         
-        -- Check admin
-        local role = player:getRole()
-        if role and Capability and role:hasCapability(Capability.AdminAccess) then
-            table.insert(channels, ChatSystem.ChannelType.ADMIN)
+        -- Check admin (only if admin chat is enabled and player is admin)
+        if settings.enableAdminChat then
+            local role = player:getRole()
+            if role and Capability and role:hasCapability(Capability.AdminAccess) then
+                table.insert(channels, ChatSystem.ChannelType.ADMIN)
+            end
         end
     end
     

@@ -90,6 +90,7 @@ if KoniLib and KoniLib.Event then
     ChatSystem.Events.OnMessageReceived = KoniLib.Event.new("ChatSystem_OnMessageReceived")
     ChatSystem.Events.OnChannelChanged = KoniLib.Event.new("ChatSystem_OnChannelChanged")
     ChatSystem.Events.OnTypingChanged = KoniLib.Event.new("ChatSystem_OnTypingChanged")
+    ChatSystem.Events.OnSettingsChanged = KoniLib.Event.new("ChatSystem_OnSettingsChanged")
 else
     print("[ChatSystem] Error: KoniLib.Event not found!")
 end
@@ -118,14 +119,47 @@ ChatSystem.Settings = {
     allowColoredMessages = false,
 }
 
+-- Cache of last loaded sandbox values for change detection
+ChatSystem._lastSandboxValues = nil
+
+--- Deep copy a table for comparison
+local function deepCopy(t)
+    if type(t) ~= "table" then return t end
+    local copy = {}
+    for k, v in pairs(t) do
+        copy[k] = deepCopy(v)
+    end
+    return copy
+end
+
+--- Check if two values are equal (handles tables)
+local function valuesEqual(a, b)
+    if type(a) ~= type(b) then return false end
+    if type(a) ~= "table" then return a == b end
+    for k, v in pairs(a) do
+        if not valuesEqual(v, b[k]) then return false end
+    end
+    for k, v in pairs(b) do
+        if a[k] == nil then return false end
+    end
+    return true
+end
+
 --- Load settings from sandbox options (call after game starts)
-function ChatSystem.LoadSandboxSettings()
+--- @param silent boolean? If true, don't print messages
+--- @return boolean changed Whether settings actually changed
+function ChatSystem.LoadSandboxSettings(silent)
     if not SandboxVars or not SandboxVars.ChatSystem then
-        print("[ChatSystem] SandboxVars.ChatSystem not available, using defaults")
-        return
+        if not silent then
+            print("[ChatSystem] SandboxVars.ChatSystem not available, using defaults")
+        end
+        return false
     end
     
     local sv = SandboxVars.ChatSystem
+    
+    -- Capture previous settings for comparison
+    local prevSettings = deepCopy(ChatSystem.Settings)
     
     -- General
     if sv.MaxMessageLength then ChatSystem.Settings.maxMessageLength = sv.MaxMessageLength end
@@ -151,15 +185,71 @@ function ChatSystem.LoadSandboxSettings()
     if sv.ChatSlowMode then ChatSystem.Settings.chatSlowMode = sv.ChatSlowMode end
     if sv.AllowColoredMessages ~= nil then ChatSystem.Settings.allowColoredMessages = sv.AllowColoredMessages end
     
-    print("[ChatSystem] Sandbox settings loaded:")
-    print("  - Max message length: " .. ChatSystem.Settings.maxMessageLength)
-    print("  - Local chat range: " .. ChatSystem.Settings.localChatRange)
-    print("  - Yell range: " .. ChatSystem.Settings.yellRange)
-    print("  - Global chat: " .. tostring(ChatSystem.Settings.enableGlobalChat))
-    print("  - Private messages: " .. tostring(ChatSystem.Settings.enablePrivateMessages))
+    -- Check if settings changed
+    local changed = not valuesEqual(prevSettings, ChatSystem.Settings)
+    
+    if not silent then
+        print("[ChatSystem] Sandbox settings loaded:")
+        print("  - Max message length: " .. ChatSystem.Settings.maxMessageLength)
+        print("  - Local chat range: " .. ChatSystem.Settings.localChatRange)
+        print("  - Yell range: " .. ChatSystem.Settings.yellRange)
+        print("  - Global chat: " .. tostring(ChatSystem.Settings.enableGlobalChat))
+        print("  - Private messages: " .. tostring(ChatSystem.Settings.enablePrivateMessages))
+    end
+    
+    -- Trigger event if settings changed
+    if changed and ChatSystem.Events and ChatSystem.Events.OnSettingsChanged then
+        print("[ChatSystem] Settings changed, triggering OnSettingsChanged event")
+        ChatSystem.Events.OnSettingsChanged:Trigger(ChatSystem.Settings)
+    end
+    
+    return changed
+end
+
+--- Apply settings received from server (client-side)
+---@param settings table The settings table from server
+function ChatSystem.ApplySettings(settings)
+    if not settings then return end
+    
+    local prevSettings = deepCopy(ChatSystem.Settings)
+    
+    -- Apply all settings from server
+    for key, value in pairs(settings) do
+        ChatSystem.Settings[key] = value
+    end
+    
+    -- Check if settings changed
+    local changed = not valuesEqual(prevSettings, ChatSystem.Settings)
+    
+    if changed then
+        print("[ChatSystem] Applied settings from server")
+        if ChatSystem.Events and ChatSystem.Events.OnSettingsChanged then
+            ChatSystem.Events.OnSettingsChanged:Trigger(ChatSystem.Settings)
+        end
+    end
+end
+
+-- Settings sync timer for live updates
+local settingsCheckTimer = 0
+local SETTINGS_CHECK_INTERVAL = 60 -- Check every ~1 second
+
+-- Periodic check for sandbox settings changes (vanilla game syncs SandboxVars automatically)
+local function OnTick()
+    settingsCheckTimer = settingsCheckTimer + 1
+    
+    if settingsCheckTimer >= SETTINGS_CHECK_INTERVAL then
+        settingsCheckTimer = 0
+        
+        -- Re-load sandbox settings (will return true if changed and trigger event)
+        ChatSystem.LoadSandboxSettings(true) -- silent mode
+    end
 end
 
 -- Load sandbox settings when the game starts
-Events.OnGameStart.Add(ChatSystem.LoadSandboxSettings)
+Events.OnGameStart.Add(function()
+    ChatSystem.LoadSandboxSettings()
+    -- Start periodic checking after initial load
+    Events.OnTick.Add(OnTick)
+end)
 
 print("[ChatSystem] Shared Definitions Loaded")
