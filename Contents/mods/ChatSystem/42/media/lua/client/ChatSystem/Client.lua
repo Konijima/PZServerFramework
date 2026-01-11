@@ -358,8 +358,8 @@ function Client.GetAvailableChannels()
     end
     
     local channels = {
-        ChatSystem.ChannelType.LOCAL,
         ChatSystem.ChannelType.GLOBAL,
+        ChatSystem.ChannelType.LOCAL,
     }
     
     local player = getPlayer()
