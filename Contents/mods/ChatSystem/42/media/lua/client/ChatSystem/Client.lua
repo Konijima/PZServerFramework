@@ -152,10 +152,31 @@ end
 function Client.OnMessageReceived(message)
     print("[ChatSystem] Client: Received message from " .. tostring(message.author) .. " - " .. tostring(message.text))
     
+    local player = getPlayer()
+    local myUsername = player and player:getUsername() or ""
+    
+    -- For LOCAL channel messages from ourselves, use vanilla processSay/processShout
+    -- This will trigger OnAddMessage which our OnVanillaMessage hook will handle
+    -- So we don't add to chat here to avoid duplicates
+    if message.channel == ChatSystem.ChannelType.LOCAL and not message.isSystem then
+        if message.author == myUsername then
+            -- Use vanilla functions for overhead text - they will also add to chat via OnVanillaMessage
+            if message.metadata and message.metadata.isYell then
+                processShoutMessage(message.text)
+            else
+                processSayMessage(message.text)
+            end
+            -- Don't add to our chat - OnVanillaMessage will handle it
+            return
+        end
+        -- Messages from OTHER players in local chat - these come via socket
+        -- but vanilla won't show them, so we need to add them ourselves
+        -- (they already have overhead text from their own processSay/processShout)
+    end
+    
     -- Handle private messages differently
     if message.channel == ChatSystem.ChannelType.PRIVATE then
         local otherUser = nil
-        local myUsername = getPlayer() and getPlayer():getUsername() or ""
         
         -- Determine who the conversation is with
         if message.metadata and message.metadata.from then
@@ -200,21 +221,6 @@ function Client.OnMessageReceived(message)
     
     -- Trigger event for UI update
     ChatSystem.Events.OnMessageReceived:Trigger(message)
-    
-    -- Show overhead text for local chat (only for own messages)
-    if message.channel == ChatSystem.ChannelType.LOCAL and not message.isSystem then
-        local player = getPlayer()
-        if player and message.author == player:getUsername() then
-            -- Use vanilla functions for overhead text
-            if message.metadata and message.metadata.isYell then
-                -- Use processShoutMessage for red yelling text
-                processShoutMessage(message.text)
-            else
-                -- Use processSayMessage for normal white text
-                processSayMessage(message.text)
-            end
-        end
-    end
 end
 
 -- ==========================================================
