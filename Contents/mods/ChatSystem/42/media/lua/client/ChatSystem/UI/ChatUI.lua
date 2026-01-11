@@ -354,28 +354,35 @@ function ISCustomChat:onPmTabClick(button)
 end
 
 function ISCustomChat:onNewPmClick()
-    -- Refresh player list first
-    ChatSystem.Client.RefreshPlayers()
-    
     -- Show dropdown of online players
     local x = self:getAbsoluteX() + (self.newPmBtn and self.newPmBtn:getX() or 0)
     local y = self:getAbsoluteY() + (self.newPmBtn and (self.newPmBtn:getY() + self.newPmBtn:getHeight()) or 0)
     
     local context = ISContextMenu.get(0, x, y)
+    if not context then return end
     
-    local players = ChatSystem.Client.GetOnlinePlayers()
+    -- Get online players from game API directly
     local myUsername = getPlayer() and getPlayer():getUsername() or ""
-    
     local hasPlayers = false
-    for _, playerName in ipairs(players) do
-        if playerName ~= myUsername then
-            context:addOption(playerName, self, ISCustomChat.onSelectPlayerForPm, playerName)
-            hasPlayers = true
+    
+    -- Use the game's connected players list
+    local connectedPlayers = getOnlinePlayers()
+    if connectedPlayers and connectedPlayers:size() > 0 then
+        for i = 0, connectedPlayers:size() - 1 do
+            local player = connectedPlayers:get(i)
+            if player then
+                local playerName = player:getUsername()
+                -- Ensure playerName is a valid string
+                if playerName and type(playerName) == "string" and playerName ~= "" and playerName ~= myUsername then
+                    context:addOption(tostring(playerName), self, ISCustomChat.onSelectPlayerForPm, tostring(playerName))
+                    hasPlayers = true
+                end
+            end
         end
     end
     
     if not hasPlayers then
-        context:addOption("No other players online", nil)
+        context:addOption("No other players online", self, nil)
     end
 end
 
@@ -552,33 +559,42 @@ end
 ---@param message ChatMessage
 ---@return string
 function ISCustomChat:formatMessage(message)
-    local color = message.color or ChatSystem.ChannelColors[message.channel] or { r = 1, g = 1, b = 1 }
-    local channelName = ChatSystem.ChannelNames[message.channel] or message.channel
+    -- Safety: ensure message is a table and has required fields
+    if not message or type(message) ~= "table" then
+        return ""
+    end
+    
+    local color = message.color or (ChatSystem.ChannelColors and ChatSystem.ChannelColors[message.channel]) or { r = 1, g = 1, b = 1 }
+    local channelName = (ChatSystem.ChannelNames and ChatSystem.ChannelNames[message.channel]) or message.channel or "unknown"
+    
+    -- Ensure text and author are strings
+    local msgText = type(message.text) == "string" and message.text or tostring(message.text or "")
+    local msgAuthor = type(message.author) == "string" and message.author or tostring(message.author or "???")
     
     local line = ""
     
     -- Timestamp [HH:MM]
-    if self.showTimestamp then
-        local time = os.date("%H:%M", message.timestamp / 1000)
-        line = "[" .. time .. "]"
+    if self.showTimestamp and message.timestamp then
+        local time = os.date("%H:%M", (tonumber(message.timestamp) or 0) / 1000)
+        line = "[" .. tostring(time) .. "]"
     end
     
     -- Handle special message types (emotes and system messages)
     if message.metadata and message.metadata.isEmote then
         -- Emote format: just the text (already formatted as "* Name action *")
-        line = line .. " <SPACE> <RGB:" .. string.format("%.1f,%.1f,%.1f", color.r, color.g, color.b) .. ">" .. message.text
+        line = line .. " <SPACE> <RGB:" .. string.format("%.1f,%.1f,%.1f", color.r, color.g, color.b) .. ">" .. msgText
         return line
     elseif message.isSystem then
         -- System message: no author prefix, just the text
-        line = line .. " <SPACE> <RGB:" .. string.format("%.1f,%.1f,%.1f", color.r, color.g, color.b) .. ">" .. message.text
+        line = line .. " <SPACE> <RGB:" .. string.format("%.1f,%.1f,%.1f", color.r, color.g, color.b) .. ">" .. msgText
         return line
     end
     
     -- Regular message: Author name
-    line = line .. " <SPACE> <RGB:1,1,1>" .. message.author .. ":"
+    line = line .. " <SPACE> <RGB:1,1,1>" .. msgAuthor .. ":"
     
     -- Message text
-    line = line .. " <SPACE> <RGB:" .. string.format("%.1f,%.1f,%.1f", color.r, color.g, color.b) .. ">" .. message.text
+    line = line .. " <SPACE> <RGB:" .. string.format("%.1f,%.1f,%.1f", color.r, color.g, color.b) .. ">" .. msgText
     
     -- Yell indicator
     if message.metadata and message.metadata.isYell then
