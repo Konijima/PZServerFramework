@@ -29,18 +29,32 @@ local playerData = {} -- { [username] = { faction, safehouse, isAdmin } }
 ---@param username string
 ---@return IsoPlayer|nil
 local function getPlayerByName(username)
-    -- In singleplayer, getPlayerByUsername doesn't exist
-    local onlinePlayers = getOnlinePlayers()
-    if not onlinePlayers then
-        local player = getPlayer()
-        if player and player:getUsername() == username then
-            return player
-        end
-        return nil
+    if not username then return nil end
+    
+    -- Try getPlayerByUsername first (MP)
+    if getPlayerByUsername then
+        local player = getPlayerByUsername(username)
+        if player then return player end
     end
     
-    -- MP: use the built-in function
-    return getPlayerByUsername(username)
+    -- Fallback: iterate through online players
+    local onlinePlayers = getOnlinePlayers()
+    if onlinePlayers and onlinePlayers:size() > 0 then
+        for i = 0, onlinePlayers:size() - 1 do
+            local p = onlinePlayers:get(i)
+            if p and p:getUsername() == username then
+                return p
+            end
+        end
+    end
+    
+    -- SP fallback
+    local player = getPlayer()
+    if player and player:getUsername() == username then
+        return player
+    end
+    
+    return nil
 end
 
 --- Get players within range of a position
@@ -93,7 +107,19 @@ local function getPlayerFaction(player)
     return nil
 end
 
---- Get player's safehouse
+--- Get player's safehouse ID (unique identifier for comparison)
+---@param player IsoPlayer
+---@return string|nil Safehouse ID (x_y format) or nil
+local function getPlayerSafehouseId(player)
+    local safehouse = SafeHouse.hasSafehouse(player)
+    if safehouse then
+        -- Use coordinates as unique ID
+        return safehouse:getX() .. "_" .. safehouse:getY()
+    end
+    return nil
+end
+
+--- Get player's safehouse object
 ---@param player IsoPlayer
 ---@return SafeHouse|nil
 local function getPlayerSafehouse(player)
@@ -141,6 +167,7 @@ chatSocket:use(Socket.MIDDLEWARE.CONNECTION, function(player, auth, context, nex
     playerData[username] = {
         faction = getPlayerFaction(player),
         safehouse = getPlayerSafehouse(player),
+        safehouseId = getPlayerSafehouseId(player),
         isAdmin = isPlayerAdmin(player),
     }
     
@@ -179,7 +206,7 @@ chatSocket:use(Socket.MIDDLEWARE.EMIT, function(player, event, data, context, ne
             return
         end
         
-        if channel == ChatSystem.ChannelType.SAFEHOUSE and not playerData[player:getUsername()].safehouse then
+        if channel == ChatSystem.ChannelType.SAFEHOUSE and not playerData[player:getUsername()].safehouseId then
             reject("You don't have a safehouse")
             return
         end
@@ -256,13 +283,14 @@ chatSocket:onServer("message", function(player, data, context, ack)
         
     elseif channel == ChatSystem.ChannelType.SAFEHOUSE then
         -- Send to safehouse members
+        local safehouseId = playerData[username].safehouseId
         local safehouse = playerData[username].safehouse
-        if safehouse then
+        if safehouseId and safehouse then
             message.metadata.safehouseName = safehouse:getTitle() or "Safehouse"
             
-            -- Find all players in the same safehouse
+            -- Find all players in the same safehouse (compare by ID, not object reference)
             for otherUsername, otherData in pairs(playerData) do
-                if otherData.safehouse == safehouse then
+                if otherData.safehouseId == safehouseId then
                     local otherPlayer = getPlayerByName(otherUsername)
                     if otherPlayer then
                         chatSocket:to(otherPlayer):emit("message", message)
