@@ -307,18 +307,26 @@ function Client.SendMessageDirect(text)
     end
     
     -- Send via socket
-    print("[ChatSystem] Client: SendMessageDirect - channel: " .. tostring(channel) .. ", text: " .. tostring(text))
+    print("[ChatSystem] Client: SendMessageDirect - channel: " .. tostring(channel) .. ", text: " .. tostring(text) .. ", isYell: " .. tostring(metadata.isYell))
     Client.socket:emit("message", {
         channel = channel,
         text = text,
         metadata = metadata
     }, function(response)
+        print("[ChatSystem] Client: SendMessageDirect ack received - success: " .. tostring(response and response.success) .. ", isLocal: " .. tostring(response and response.isLocal) .. ", isYell: " .. tostring(response and response.isYell))
         -- For LOCAL chat, call vanilla processSay/processShout on successful ack
         if response and response.success and response.isLocal then
             local processedText = response.text or text
             if response.isYell then
+                print("[ChatSystem] Client: Calling processShoutMessage with: " .. tostring(processedText))
                 processShoutMessage(processedText)
+                -- Also trigger the yell animation (false = no extra random text)
+                local player = getPlayer()
+                if player then
+                    player:Callout(false)
+                end
             else
+                print("[ChatSystem] Client: Calling processSayMessage with: " .. tostring(processedText))
                 processSayMessage(processedText)
             end
         end
@@ -363,18 +371,26 @@ function Client.SendMessage(inputText)
     end
     
     -- Send via socket
-    print("[ChatSystem] Client: SendMessage - channel: " .. tostring(channel) .. ", text: " .. tostring(text))
+    print("[ChatSystem] Client: SendMessage - channel: " .. tostring(channel) .. ", text: " .. tostring(text) .. ", isYell: " .. tostring(metadata.isYell))
     Client.socket:emit("message", {
         channel = channel,
         text = text,
         metadata = metadata
     }, function(response)
+        print("[ChatSystem] Client: SendMessage ack received - success: " .. tostring(response and response.success) .. ", isLocal: " .. tostring(response and response.isLocal) .. ", isYell: " .. tostring(response and response.isYell))
         -- For LOCAL chat, call vanilla processSay/processShout on successful ack
         if response and response.success and response.isLocal then
             local processedText = response.text or text
             if response.isYell then
+                print("[ChatSystem] Client: Calling processShoutMessage with: " .. tostring(processedText))
                 processShoutMessage(processedText)
+                -- Also trigger the yell animation (false = no extra random text)
+                local player = getPlayer()
+                if player then
+                    player:Callout(false)
+                end
             else
+                print("[ChatSystem] Client: Calling processSayMessage with: " .. tostring(processedText))
                 processSayMessage(processedText)
             end
         end

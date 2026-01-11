@@ -377,6 +377,7 @@ chatSocket:onServer("message", function(player, data, context, ack)
         -- Other players will receive it via vanilla OnAddMessage hook
         
         -- Just acknowledge with the processed text (uppercase for yells, display name)
+        print("[ChatSystem] Server: LOCAL ack - isYell: " .. tostring(metadata.isYell) .. ", text: " .. tostring(text))
         if ack then
             ack({ 
                 success = true, 
