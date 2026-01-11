@@ -152,7 +152,7 @@ local function getPlayerSafehouse(player)
     return SafeHouse.hasSafehouse(player)
 end
 
---- Check if player is admin (has admin power)
+--- Check if player is admin (actual "admin" access level only)
 ---@param player IsoPlayer
 ---@return boolean
 local function isPlayerAdmin(player)
@@ -161,18 +161,7 @@ local function isPlayerAdmin(player)
         return true
     end
     
-    -- Check if player has admin power (highest level)
-    local role = player:getRole()
-    if role then
-        local success, hasAdmin = pcall(function()
-            return role:hasAdminPower()
-        end)
-        if success and hasAdmin then
-            return true
-        end
-    end
-    
-    -- Fallback: check access level for admin specifically
+    -- Only "admin" access level can access admin chat (not moderator, observer, etc.)
     local accessLevel = player:getAccessLevel()
     return accessLevel and string.lower(accessLevel) == "admin"
 end
@@ -294,12 +283,17 @@ local function validateIncomingMessage(player, data)
     end
     
     -- Validate channel access (membership/permissions)
-    if channel == ChatSystem.ChannelType.STAFF and not pData.isStaff then
-        return false, "No access to staff chat"
+    -- Use real-time permission checks for staff/admin (not cached values)
+    if channel == ChatSystem.ChannelType.STAFF then
+        if not isPlayerStaff(player) then
+            return false, "No access to staff chat"
+        end
     end
     
-    if channel == ChatSystem.ChannelType.ADMIN and not pData.isAdmin then
-        return false, "No access to admin chat"
+    if channel == ChatSystem.ChannelType.ADMIN then
+        if not isPlayerAdmin(player) then
+            return false, "No access to admin chat"
+        end
     end
     
     if channel == ChatSystem.ChannelType.FACTION and not pData.faction then
@@ -459,24 +453,20 @@ chatSocket:onServer("message", function(player, data, context, ack)
         end
         
     elseif channel == ChatSystem.ChannelType.ADMIN then
-        -- Send to all admins
-        for otherUsername, otherData in pairs(playerData) do
-            if otherData.isAdmin then
-                local otherPlayer = getPlayerByName(otherUsername)
-                if otherPlayer then
-                    chatSocket:to(otherPlayer):emit("message", message)
-                end
+        -- Send to all admins (verify permission in real-time)
+        for otherUsername, _ in pairs(playerData) do
+            local otherPlayer = getPlayerByName(otherUsername)
+            if otherPlayer and isPlayerAdmin(otherPlayer) then
+                chatSocket:to(otherPlayer):emit("message", message)
             end
         end
         
     elseif channel == ChatSystem.ChannelType.STAFF then
-        -- Send to all staff members (admin + moderators)
-        for otherUsername, otherData in pairs(playerData) do
-            if otherData.isStaff then
-                local otherPlayer = getPlayerByName(otherUsername)
-                if otherPlayer then
-                    chatSocket:to(otherPlayer):emit("message", message)
-                end
+        -- Send to all staff members (verify permission in real-time)
+        for otherUsername, _ in pairs(playerData) do
+            local otherPlayer = getPlayerByName(otherUsername)
+            if otherPlayer and isPlayerStaff(otherPlayer) then
+                chatSocket:to(otherPlayer):emit("message", message)
             end
         end
         
