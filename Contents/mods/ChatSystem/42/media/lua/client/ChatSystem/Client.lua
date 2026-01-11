@@ -201,17 +201,17 @@ function Client.OnMessageReceived(message)
     -- Trigger event for UI update
     ChatSystem.Events.OnMessageReceived:Trigger(message)
     
-    -- Show overhead text for local chat
+    -- Show overhead text for local chat (only for own messages)
     if message.channel == ChatSystem.ChannelType.LOCAL and not message.isSystem then
         local player = getPlayer()
         if player and message.author == player:getUsername() then
-            -- Show text above the player's head
+            -- Use vanilla functions for overhead text
             if message.metadata and message.metadata.isYell then
-                -- Use Yell for red overhead text
-                player:Yell(message.text)
+                -- Use processShoutMessage for red yelling text
+                processShoutMessage(message.text)
             else
-                -- Use Say for normal overhead text
-                player:Say(message.text)
+                -- Use processSayMessage for normal white text
+                processSayMessage(message.text)
             end
         end
     end
@@ -593,12 +593,17 @@ end
 local function OnVanillaMessage(message, tabID)
     local author = message:getAuthor()
     local text = message:getText()
+    local textWithPrefix = message:getTextWithPrefix()
     
     if not text or text == "" then return end
+    
+    -- Debug: print the message details
+    print("[ChatSystem] Vanilla message - author: " .. tostring(author) .. ", text: " .. tostring(text) .. ", prefix: " .. tostring(textWithPrefix))
     
     -- Determine channel based on message source
     local channel = ChatSystem.ChannelType.LOCAL
     local isSystem = false
+    local isYell = false
     local color = nil
     
     if author == "Server" then
@@ -610,9 +615,21 @@ local function OnVanillaMessage(message, tabID)
         -- Player messages (yells, says, etc.) - these are local chat
         channel = ChatSystem.ChannelType.LOCAL
         
-        -- Check if this is a yell (usually in uppercase or has specific formatting)
-        local textWithPrefix = message:getTextWithPrefix()
-        if textWithPrefix and textWithPrefix:find("%[Yell%]") then
+        -- Check if this is a yell by looking at the prefix text
+        -- Vanilla yell format usually contains [Shout] or similar, or text is uppercase
+        if textWithPrefix then
+            local lowerPrefix = textWithPrefix:lower()
+            if lowerPrefix:find("%[shout%]") or lowerPrefix:find("%[yell%]") then
+                isYell = true
+            end
+        end
+        
+        -- Also check if the text is all uppercase (common yell indicator)
+        if not isYell and text == text:upper() and #text > 3 then
+            isYell = true
+        end
+        
+        if isYell then
             color = { r = 1, g = 0.3, b = 0.3 } -- Red for yells
         end
     end
@@ -627,6 +644,9 @@ local function OnVanillaMessage(message, tabID)
     
     if color then
         msg.color = color
+    end
+    if isYell then
+        msg.metadata.isYell = true
     end
     msg.metadata.isVanilla = true
     
