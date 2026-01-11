@@ -9,7 +9,7 @@
 - **Socket-based Networking**: Built on KoniLib's Socket.io-like API
 - **Proximity Chat**: Local chat respects distance between players
 - **Channel Colors**: Each channel has a distinct color for easy identification
-- **Command Shortcuts**: Use familiar commands like `/g`, `/l`, `/pm`, etc.
+- **Command Shortcuts**: Use familiar commands like `/g`, `/l`, `/f`, etc.
 - **Message History**: Use Up/Down arrows to cycle through previous messages
 - **Yell Support**: Type in ALL CAPS or prefix with `!` to yell (increased range)
 - **Live Sandbox Settings**: Server settings update in real-time without restart
@@ -30,12 +30,12 @@
 
 | Channel | Command | Description |
 |---------|---------|-------------|
-| Local | `/l`, `/s`, `/say` | Proximity-based chat (30 tiles) |
-| Global | `/g`, `/all` | Server-wide messages |
+| Local | `/l`, `/s`, `/say`, `/local` | Proximity-based chat (30 tiles) |
+| Global | `/g`, `/all`, `/global` | Server-wide messages |
 | Faction | `/f`, `/faction` | Faction members only |
 | Safehouse | `/sh`, `/safehouse` | Safehouse members only |
-| Private | `/pm`, `/w`, `/msg` | Direct message to player |
-| Staff | `/staff`, `/st` | Staff-only channel (any access level) |
+| Private | (via conversation tabs) | Direct message to player |
+| Staff | `/staff`, `/st` | Staff-only channel |
 | Admin | `/a`, `/admin` | Admin-only channel |
 | Radio | `/r`, `/radio` | Radio frequency chat |
 
@@ -46,7 +46,7 @@
 ```
 /g Hello everyone!          -- Global message
 /l Hey neighbor             -- Local message
-/pm Username Hello there    -- Private message to Username
+(Use conversation tabs for PMs)
 /f Faction meeting at base  -- Faction message
 !HELP ME!                   -- Yell (increased range)
 ```
@@ -78,14 +78,15 @@ ChatSystem settings are configured through the game's sandbox options menu. Chan
 | Enable Global Chat | boolean | true | Allow server-wide chat |
 | Enable Faction Chat | boolean | true | Allow faction chat |
 | Enable Safehouse Chat | boolean | true | Allow safehouse chat |
-| Enable Staff Chat | boolean | true | Allow staff-only chat (all access levels) |
+| Enable Staff Chat | boolean | true | Allow staff-only chat |
 | Enable Admin Chat | boolean | true | Allow admin-only chat |
 | Enable Private Messages | boolean | true | Allow direct messages |
 | Chat Slow Mode | 0-60 | 0 | Seconds between messages (0 = disabled) |
+| Roleplay Mode | boolean | false | Use character name instead of username |
 
 **Note:** Local chat is always enabled and cannot be disabled - it serves as the default communication channel.
 
-**Note:** Staff channel uses B42's capability system - players with `hasAdminPower()`, `SeePlayersConnected`, or `AnswerTickets` capabilities are considered staff. Admin channel requires `hasAdminPower()` specifically.
+**Note:** Staff channel uses the capability system - players with `hasAdminPower()`, `SeePlayersConnected`, or `AnswerTickets` capabilities are considered staff. Access levels `admin`, `moderator`, `overseer`, and `gm` also grant staff access. `observer` does NOT have staff access. Admin channel requires the `admin` access level specifically.
 
 ### Settings in Code
 
@@ -104,6 +105,7 @@ ChatSystem.Settings = {
     enableAdminChat = true,    -- Admin chat toggle
     enablePrivateMessages = true, -- PM toggle
     chatSlowMode = 0,          -- Rate limit (0 = disabled)
+    roleplayMode = false,      -- Use character name instead of username
 }
 ```
 
@@ -177,12 +179,12 @@ ChatSystem.Commands.Register({
 
 ### Access Levels
 
-| Level | Description |
-|-------|-------------|
-| `PLAYER` | Any player can use |
-| `MODERATOR` | Moderators and above |
-| `ADMIN` | Server admins |
-| `OWNER` | Server owner only |
+| Level | Description | PZ Access Levels |
+|-------|-------------|------------------|
+| `PLAYER` | Any player can use | None, any |
+| `MODERATOR` | Moderators and above | moderator, overseer, observer |
+| `ADMIN` | Game Masters | gm |
+| `OWNER` | Server admins (highest) | admin |
 
 ### Argument Types
 
@@ -208,6 +210,7 @@ context = {
     rawArgs = string,        -- Raw argument string
     argList = table,         -- Arguments as array
     command = table,         -- The command definition
+    channel = string,        -- The channel the command was sent from
 }
 ```
 
@@ -245,7 +248,6 @@ local target, err = ChatSystem.Commands.Server.FindPlayer("john")
 | `/god` | Admin | Toggle god mode |
 | `/invisible` | Admin | Toggle invisibility |
 | `/servermsg <msg>` | Owner | System message |
-| `/save` | Owner | Save the world |
 
 ## Events
 
@@ -254,7 +256,6 @@ local target, err = ChatSystem.Commands.Server.FindPlayer("john")
 - `ChatSystem.Events.OnTypingChanged` - Fired when typing indicators update
 - `ChatSystem.Events.OnSettingsChanged` - Fired when sandbox settings change (live updates)
 - `ChatSystem.Commands.Events.OnCommandExecuted` - Fired when a command is executed
-- `ChatSystem.Commands.Events.OnCommandFailed` - Fired when a command fails
 
 ## Customization
 
