@@ -320,10 +320,10 @@ function Client.SendMessageDirect(text)
             if response.isYell then
                 print("[ChatSystem] Client: Calling processShoutMessage with: " .. tostring(processedText))
                 processShoutMessage(processedText)
-                -- Also trigger the yell animation (false = no extra random text)
+                -- Play the shout animation
                 local player = getPlayer()
                 if player then
-                    player:Callout(false)
+                    player:playEmote("shout")
                 end
             else
                 print("[ChatSystem] Client: Calling processSayMessage with: " .. tostring(processedText))
@@ -384,10 +384,10 @@ function Client.SendMessage(inputText)
             if response.isYell then
                 print("[ChatSystem] Client: Calling processShoutMessage with: " .. tostring(processedText))
                 processShoutMessage(processedText)
-                -- Also trigger the yell animation (false = no extra random text)
+                -- Play the shout animation
                 local player = getPlayer()
                 if player then
-                    player:Callout(false)
+                    player:playEmote("shout")
                 end
             else
                 print("[ChatSystem] Client: Calling processSayMessage with: " .. tostring(processedText))
