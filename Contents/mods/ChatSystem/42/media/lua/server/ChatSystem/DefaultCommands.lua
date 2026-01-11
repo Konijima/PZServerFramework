@@ -84,21 +84,45 @@ Commands.Register({
             return
         end
         
-        local names = {}
-        for i = 0, onlinePlayers:size() - 1 do
+        -- Group players by access level
+        local groups = {
+            { level = Commands.AccessLevel.OWNER, label = "Owner", players = {} },
+            { level = Commands.AccessLevel.ADMIN, label = "Admins", players = {} },
+            { level = Commands.AccessLevel.MODERATOR, label = "Moderators", players = {} },
+            { level = Commands.AccessLevel.PLAYER, label = "Players", players = {} }
+        }
+        
+        local totalCount = onlinePlayers:size()
+        
+        for i = 0, totalCount - 1 do
             local p = onlinePlayers:get(i)
             local name = p:getUsername()
             local accessLevel = Server.GetPlayerAccessLevel(p)
             
-            -- Add indicator for staff
-            if accessLevel ~= Commands.AccessLevel.PLAYER then
-                name = name .. " [" .. accessLevel:upper() .. "]"
+            -- Mark current player
+            if name == context.username then
+                name = name .. " (you)"
             end
             
-            table.insert(names, name)
+            -- Add to appropriate group
+            for _, group in ipairs(groups) do
+                if accessLevel == group.level then
+                    table.insert(group.players, name)
+                    break
+                end
+            end
         end
         
-        Server.Reply(context.player, "Online (" .. #names .. "): " .. table.concat(names, ", "))
+        -- Build output
+        local output = "=== Online Players (" .. totalCount .. ") ==="
+        
+        for _, group in ipairs(groups) do
+            if #group.players > 0 then
+                output = output .. "\n[" .. group.label .. "] " .. table.concat(group.players, ", ")
+            end
+        end
+        
+        Server.Reply(context.player, output)
     end
 })
 
