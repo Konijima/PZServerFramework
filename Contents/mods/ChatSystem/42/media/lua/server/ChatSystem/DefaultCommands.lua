@@ -88,7 +88,7 @@ Commands.Register({
                 end
             end
             
-            output = output .. "\n\nUse /help \<command\> <SPACE> for more info"
+            output = output .. "\n\nUse '/help [command]' <SPACE> for more info"
             Server.Reply(context.player, output, nil, context.channel)
         end
     end
