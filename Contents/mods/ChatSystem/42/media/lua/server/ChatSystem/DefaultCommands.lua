@@ -416,7 +416,8 @@ Commands.Register({
         target:setZ(context.player:getZ())
         
         Server.ReplySuccess(context.player, "Teleported " .. targetName .. " to you", context.channel)
-        Server.Reply(target, "You have been teleported to " .. context.username, nil, context.channel)
+        -- Notify target in LOCAL so they always see it regardless of their active channel
+        Server.Reply(target, "You have been teleported to " .. context.username, nil, ChatSystem.ChannelType.LOCAL)
     end
 })
 
