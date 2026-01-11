@@ -203,7 +203,7 @@ chatSocket:onServer("message", function(player, data, context, ack)
     
     -- Check if this is a command (and not a channel command like /g, /l)
     if ChatSystem.Commands and ChatSystem.Commands.Server and ChatSystem.Commands.Server.HandleMessageAsCommand then
-        if ChatSystem.Commands.Server.HandleMessageAsCommand(player, text) then
+        if ChatSystem.Commands.Server.HandleMessageAsCommand(player, text, channel) then
             -- Was a command, don't process as chat
             if ack then
                 ack({ success = true, wasCommand = true })
@@ -402,6 +402,7 @@ local typingPlayers = {} -- { [channel] = { [username] = timestamp } }
 chatSocket:onServer("typingStart", function(player, data, context, ack)
     local username = player:getUsername()
     local channel = data.channel or ChatSystem.ChannelType.LOCAL
+    local target = data.target  -- For PM typing
     
     if not typingPlayers[channel] then
         typingPlayers[channel] = {}
@@ -409,31 +410,40 @@ chatSocket:onServer("typingStart", function(player, data, context, ack)
     typingPlayers[channel][username] = getTimestampMs()
     
     -- Broadcast typing indicator based on channel
-    Server.BroadcastTypingIndicator(player, channel, true)
+    Server.BroadcastTypingIndicator(player, channel, true, target)
 end)
 
 -- Handle typing stop
 chatSocket:onServer("typingStop", function(player, data, context, ack)
     local username = player:getUsername()
     local channel = data.channel or ChatSystem.ChannelType.LOCAL
+    local target = data.target  -- For PM typing
     
     if typingPlayers[channel] then
         typingPlayers[channel][username] = nil
     end
     
     -- Broadcast typing indicator based on channel
-    Server.BroadcastTypingIndicator(player, channel, false)
+    Server.BroadcastTypingIndicator(player, channel, false, target)
 end)
 
 --- Broadcast typing indicator to appropriate players
 ---@param player IsoPlayer
 ---@param channel string
 ---@param isTyping boolean
-function Server.BroadcastTypingIndicator(player, channel, isTyping)
+---@param target string|nil Optional target for PM typing
+function Server.BroadcastTypingIndicator(player, channel, isTyping, target)
     local username = player:getUsername()
-    local data = { username = username, channel = channel, isTyping = isTyping }
+    local data = { username = username, channel = channel, isTyping = isTyping, target = target }
     
-    if channel == ChatSystem.ChannelType.LOCAL then
+    if channel == ChatSystem.ChannelType.PRIVATE and target then
+        -- PM typing: only send to the specific target
+        local targetPlayer = getPlayerByName(target)
+        if targetPlayer then
+            chatSocket:to(targetPlayer):emit("typing", data)
+        end
+        
+    elseif channel == ChatSystem.ChannelType.LOCAL then
         -- Send to nearby players
         local x, y, z = player:getX(), player:getY(), player:getZ()
         local recipients = getPlayersInRange(x, y, z, ChatSystem.Settings.localChatRange)

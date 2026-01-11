@@ -147,8 +147,8 @@ Commands.Register({
             result = result .. total
         end
         
-        -- Broadcast to nearby players (LOCAL channel)
-        Server.Broadcast(result, ChatSystem.ChannelType.LOCAL)
+        -- Broadcast to the channel the command was sent from
+        Server.Broadcast(result, context.channel, context.player)
     end
 })
 

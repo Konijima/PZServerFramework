@@ -58,7 +58,7 @@ ChatSystem.ChannelColors = {
     [ChatSystem.ChannelType.GLOBAL] = { r = 0.6, g = 0.9, b = 1 },  -- Light blue
     [ChatSystem.ChannelType.FACTION] = { r = 0.2, g = 1, b = 0.2 }, -- Green
     [ChatSystem.ChannelType.SAFEHOUSE] = { r = 1, g = 0.6, b = 0.2 }, -- Orange
-    [ChatSystem.ChannelType.PRIVATE] = { r = 1, g = 0.5, b = 1 },   -- Pink
+    [ChatSystem.ChannelType.PRIVATE] = { r = 1, g = 0.5, b = 1 },   -- Pink (for PM conversations)
     [ChatSystem.ChannelType.ADMIN] = { r = 1, g = 0.2, b = 0.2 },   -- Red
     [ChatSystem.ChannelType.RADIO] = { r = 0.5, g = 1, b = 0.5 },   -- Light green
 }
@@ -74,13 +74,12 @@ ChatSystem.ChannelNames = {
     [ChatSystem.ChannelType.RADIO] = "Radio",
 }
 
--- Channel commands/shortcuts
+-- Channel commands/shortcuts (PM removed - handled via conversation tabs)
 ChatSystem.ChannelCommands = {
     [ChatSystem.ChannelType.LOCAL] = { "/local ", "/l ", "/say ", "/s " },
     [ChatSystem.ChannelType.GLOBAL] = { "/global ", "/g ", "/all " },
     [ChatSystem.ChannelType.FACTION] = { "/faction ", "/f " },
     [ChatSystem.ChannelType.SAFEHOUSE] = { "/safehouse ", "/sh " },
-    [ChatSystem.ChannelType.PRIVATE] = { "/pm ", "/whisper ", "/w ", "/msg " },
     [ChatSystem.ChannelType.ADMIN] = { "/admin ", "/a " },
     [ChatSystem.ChannelType.RADIO] = { "/radio ", "/r " },
 }

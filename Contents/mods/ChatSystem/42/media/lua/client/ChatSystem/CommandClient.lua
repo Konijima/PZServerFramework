@@ -115,8 +115,11 @@ function Client.Execute(commandText, callback)
         return
     end
     
-    -- Send to server
-    ChatSystem.Client.socket:emit("command", { command = commandText }, function(response)
+    -- Send to server (include current channel for context)
+    ChatSystem.Client.socket:emit("command", { 
+        command = commandText, 
+        channel = ChatSystem.Client.currentChannel 
+    }, function(response)
         if callback then
             callback(response)
         end

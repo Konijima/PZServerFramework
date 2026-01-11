@@ -11,11 +11,15 @@ Client.messages = {}       -- All messages
 Client.currentChannel = ChatSystem.ChannelType.LOCAL
 Client.onlinePlayers = {}
 Client.isConnected = false
-Client.privateTarget = nil -- Target for private messages
 Client.typingPlayers = {}  -- { [channel] = { [username] = true } }
 Client.isTyping = false
 Client.typingChannel = nil
+Client.typingTarget = nil  -- Target for PM typing
 Client.lastTypingTime = 0
+
+-- Private conversation state
+Client.conversations = {}  -- { [username] = { messages = {}, unread = 0 } }
+Client.activeConversation = nil  -- Username of active PM conversation (nil = normal channel)
 
 -- ==========================================================
 -- Socket Connection
@@ -70,11 +74,12 @@ end
 -- ==========================================================
 
 --- Handle received typing indicator
----@param data table { username, channel, isTyping }
+---@param data table { username, channel, isTyping, target }
 function Client.OnTypingReceived(data)
     local channel = data.channel or ChatSystem.ChannelType.LOCAL
     local username = data.username
     local isTyping = data.isTyping
+    local target = data.target  -- For PM typing
     
     if not Client.typingPlayers[channel] then
         Client.typingPlayers[channel] = {}
@@ -86,8 +91,8 @@ function Client.OnTypingReceived(data)
         Client.typingPlayers[channel][username] = nil
     end
     
-    -- Trigger event for UI update
-    ChatSystem.Events.OnTypingChanged:Trigger(channel, Client.GetTypingUsers(channel))
+    -- Trigger event for UI update with target info
+    ChatSystem.Events.OnTypingChanged:Trigger(channel, Client.GetTypingUsers(channel), target)
 end
 
 --- Get list of users typing in a channel
@@ -105,18 +110,20 @@ end
 
 --- Send typing start indicator
 ---@param channel string
-function Client.StartTyping(channel)
+---@param target string|nil Optional target for PM typing
+function Client.StartTyping(channel, target)
     if not Client.isConnected then return end
     
     local now = getTimestampMs()
     
     -- Only send if not already typing in this channel, or if it's been a while
-    if not Client.isTyping or Client.typingChannel ~= channel or (now - Client.lastTypingTime > 3000) then
+    if not Client.isTyping or Client.typingChannel ~= channel or Client.typingTarget ~= target or (now - Client.lastTypingTime > 3000) then
         Client.isTyping = true
         Client.typingChannel = channel
+        Client.typingTarget = target
         Client.lastTypingTime = now
         
-        Client.socket:emit("typingStart", { channel = channel })
+        Client.socket:emit("typingStart", { channel = channel, target = target })
     end
 end
 
@@ -125,9 +132,10 @@ function Client.StopTyping()
     if not Client.isConnected then return end
     
     if Client.isTyping and Client.typingChannel then
-        Client.socket:emit("typingStop", { channel = Client.typingChannel })
+        Client.socket:emit("typingStop", { channel = Client.typingChannel, target = Client.typingTarget })
         Client.isTyping = false
         Client.typingChannel = nil
+        Client.typingTarget = nil
     end
 end
 
@@ -139,12 +147,50 @@ end
 function Client.OnMessageReceived(message)
     print("[ChatSystem] Client: Received message from " .. tostring(message.author) .. " - " .. tostring(message.text))
     
-    -- Add to message history
-    table.insert(Client.messages, message)
-    
-    -- Trim old messages
-    while #Client.messages > ChatSystem.Settings.maxMessagesStored do
-        table.remove(Client.messages, 1)
+    -- Handle private messages differently
+    if message.channel == ChatSystem.ChannelType.PRIVATE then
+        local otherUser = nil
+        local myUsername = getPlayer() and getPlayer():getUsername() or ""
+        
+        -- Determine who the conversation is with
+        if message.metadata and message.metadata.from then
+            otherUser = message.metadata.from
+        elseif message.metadata and message.metadata.to then
+            otherUser = message.metadata.to
+        elseif message.author ~= myUsername then
+            otherUser = message.author
+        end
+        
+        if otherUser then
+            -- Create conversation if it doesn't exist
+            if not Client.conversations[otherUser] then
+                Client.conversations[otherUser] = { messages = {}, unread = 0 }
+            end
+            
+            -- Add message to conversation
+            table.insert(Client.conversations[otherUser].messages, message)
+            
+            -- Trim old messages
+            while #Client.conversations[otherUser].messages > ChatSystem.Settings.maxMessagesStored do
+                table.remove(Client.conversations[otherUser].messages, 1)
+            end
+            
+            -- Increment unread if not the active conversation
+            if Client.activeConversation ~= otherUser then
+                Client.conversations[otherUser].unread = (Client.conversations[otherUser].unread or 0) + 1
+            end
+            
+            -- Play sound for PM
+            getSoundManager():PlaySound("UISelectSmall", false, 0.5)
+        end
+    else
+        -- Regular channel message - add to message history
+        table.insert(Client.messages, message)
+        
+        -- Trim old messages
+        while #Client.messages > ChatSystem.Settings.maxMessagesStored do
+            table.remove(Client.messages, 1)
+        end
     end
     
     -- Trigger event for UI update
@@ -157,11 +203,6 @@ function Client.OnMessageReceived(message)
             -- Show text above the player's head using the built-in Say method
             player:Say(message.text)
         end
-    end
-    
-    -- Play sound for certain message types
-    if message.channel == ChatSystem.ChannelType.PRIVATE then
-        getSoundManager():PlaySound("UISelectSmall", false, 0.5)
     end
 end
 
@@ -187,15 +228,6 @@ function Client.ParseInput(inputText)
                 text = inputText:sub(#cmd + 1)
                 break
             end
-        end
-    end
-    
-    -- Handle private message target extraction
-    if channel == ChatSystem.ChannelType.PRIVATE then
-        local parts = luautils.split(text, " ")
-        if parts and #parts >= 1 then
-            metadata.target = parts[1]
-            text = table.concat(parts, " ", 2)
         end
     end
     
@@ -235,18 +267,10 @@ function Client.SendMessageDirect(text)
     local channel = Client.currentChannel
     local metadata = {}
     
-    -- Handle private message target extraction
-    if channel == ChatSystem.ChannelType.PRIVATE then
-        local parts = luautils.split(text, " ")
-        if parts and #parts >= 1 then
-            if Client.privateTarget then
-                metadata.target = Client.privateTarget
-            else
-                metadata.target = parts[1]
-                text = table.concat(parts, " ", 2)
-                Client.privateTarget = metadata.target
-            end
-        end
+    -- Handle private message conversation
+    if Client.activeConversation then
+        channel = ChatSystem.ChannelType.PRIVATE
+        metadata.target = Client.activeConversation
     end
     
     -- Check for yell (uppercase or ! prefix)
@@ -285,14 +309,10 @@ function Client.SendMessage(inputText)
     -- Don't send empty messages
     if not text or text == "" or text == " " then return end
     
-    -- Use stored private target if available
-    if channel == ChatSystem.ChannelType.PRIVATE and not metadata.target and Client.privateTarget then
-        metadata.target = Client.privateTarget
-    end
-    
-    -- Store private target for quick replies
-    if channel == ChatSystem.ChannelType.PRIVATE and metadata.target then
-        Client.privateTarget = metadata.target
+    -- Handle active PM conversation
+    if Client.activeConversation then
+        channel = ChatSystem.ChannelType.PRIVATE
+        metadata.target = Client.activeConversation
     end
     
     -- Check for yell (uppercase or ! prefix)
@@ -313,9 +333,6 @@ function Client.SendMessage(inputText)
         metadata = metadata
     }, function(response)
         print("[ChatSystem] Client: Message response: " .. tostring(response and response.success))
-        if response and response.success then
-            -- Message sent successfully
-        end
     end)
 end
 
@@ -364,9 +381,6 @@ function Client.GetAvailableChannels()
         end
     end
     
-    -- PM is always available in MP
-    table.insert(channels, ChatSystem.ChannelType.PRIVATE)
-    
     -- Radio if player has one
     -- TODO: Check for radio item
     -- table.insert(channels, ChatSystem.ChannelType.RADIO)
@@ -404,6 +418,65 @@ function Client.RefreshPlayers()
             Client.onlinePlayers = response.players
         end
     end)
+end
+
+-- ==========================================================
+-- Private Conversations
+-- ==========================================================
+
+--- Start or open a conversation with a player
+---@param username string
+function Client.OpenConversation(username)
+    if not username or username == "" then return end
+    
+    -- Create conversation if it doesn't exist
+    if not Client.conversations[username] then
+        Client.conversations[username] = { messages = {}, unread = 0 }
+    end
+    
+    -- Set as active conversation
+    Client.activeConversation = username
+    Client.conversations[username].unread = 0
+    
+    -- Trigger event
+    ChatSystem.Events.OnChannelChanged:Trigger("pm:" .. username)
+end
+
+--- Close a conversation
+---@param username string
+function Client.CloseConversation(username)
+    if not username then return end
+    
+    -- If closing the active conversation, switch to local
+    if Client.activeConversation == username then
+        Client.activeConversation = nil
+        Client.currentChannel = ChatSystem.ChannelType.LOCAL
+        ChatSystem.Events.OnChannelChanged:Trigger(ChatSystem.ChannelType.LOCAL)
+    end
+    
+    -- Remove conversation data
+    Client.conversations[username] = nil
+end
+
+--- Get messages for a conversation
+---@param username string
+---@return table
+function Client.GetConversationMessages(username)
+    if Client.conversations[username] then
+        return Client.conversations[username].messages
+    end
+    return {}
+end
+
+--- Get all open conversations
+---@return table { username = { messages, unread } }
+function Client.GetConversations()
+    return Client.conversations
+end
+
+--- Deactivate conversation (switch back to normal channel)
+function Client.DeactivateConversation()
+    Client.activeConversation = nil
 end
 
 -- ==========================================================

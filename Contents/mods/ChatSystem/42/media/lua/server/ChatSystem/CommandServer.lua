@@ -72,9 +72,10 @@ end
 --- Execute a command
 ---@param player IsoPlayer
 ---@param commandText string The full command string (including /)
+---@param options table|nil Optional execution options { channel = string }
 ---@return boolean success
 ---@return string|nil error
-function Server.Execute(player, commandText)
+function Server.Execute(player, commandText, options)
     if not player then
         return false, "No player"
     end
@@ -131,6 +132,7 @@ function Server.Execute(player, commandText)
         rawArgs = rawArgs,
         argList = args,
         command = cmd,
+        channel = options and options.channel or ChatSystem.ChannelType.LOCAL,
     }
     
     -- Execute the handler
@@ -190,10 +192,11 @@ function Server.ReplySuccess(player, text, channel)
     Server.Reply(player, text, false, channel)
 end
 
---- Broadcast a message to all players
+--- Broadcast a message based on channel type
 ---@param text string
 ---@param channel string?
-function Server.Broadcast(text, channel)
+---@param sourcePlayer IsoPlayer? Source player for LOCAL channel proximity
+function Server.Broadcast(text, channel, sourcePlayer)
     local ch = channel or ChatSystem.ChannelType.LOCAL
     local msg = ChatSystem.CreateSystemMessage(text, ch)
     
@@ -208,8 +211,31 @@ function Server.Broadcast(text, channel)
         return
     end
     
-    -- MP mode: broadcast to all
-    chatSocket:broadcast():emit("message", msg)
+    -- Handle different channel types
+    if ch == ChatSystem.ChannelType.LOCAL and sourcePlayer then
+        -- LOCAL: send to players in range
+        local x, y, z = sourcePlayer:getX(), sourcePlayer:getY(), sourcePlayer:getZ()
+        local range = ChatSystem.Settings.localChatRange or 30
+        
+        for i = 0, onlinePlayers:size() - 1 do
+            local player = onlinePlayers:get(i)
+            local px, py, pz = player:getX(), player:getY(), player:getZ()
+            
+            -- Check Z level (same floor or adjacent)
+            if math.abs(pz - z) <= 1 then
+                local dist = math.sqrt((px - x)^2 + (py - y)^2)
+                if dist <= range then
+                    chatSocket:to(player):emit("message", msg)
+                end
+            end
+        end
+    elseif ch == ChatSystem.ChannelType.GLOBAL then
+        -- GLOBAL: broadcast to all
+        chatSocket:broadcast():emit("message", msg)
+    else
+        -- Default: broadcast to all (fallback for other channels)
+        chatSocket:broadcast():emit("message", msg)
+    end
 end
 
 --- Send a message to all players with a specific access level
@@ -300,6 +326,7 @@ end
 -- Handle command messages
 chatSocket:onServer("command", function(player, data, context, ack)
     local commandText = data.command
+    local channel = data.channel or ChatSystem.ChannelType.LOCAL
     
     if not commandText or not Commands.IsCommand(commandText) then
         if ack then
@@ -308,7 +335,7 @@ chatSocket:onServer("command", function(player, data, context, ack)
         return
     end
     
-    local success, result = Server.Execute(player, commandText)
+    local success, result = Server.Execute(player, commandText, { channel = channel })
     
     if not success then
         Server.ReplyError(player, result or "Command failed")
@@ -326,8 +353,9 @@ local originalMessageHandler = nil
 --- Check if a message is a command and handle it
 ---@param player IsoPlayer
 ---@param text string
+---@param channel string|nil The source channel the command was sent from
 ---@return boolean wasCommand
-function Server.HandleMessageAsCommand(player, text)
+function Server.HandleMessageAsCommand(player, text, channel)
     if not Commands.IsCommand(text) then
         return false
     end
@@ -343,7 +371,7 @@ function Server.HandleMessageAsCommand(player, text)
     end
     
     -- This is a custom command
-    local success, result = Server.Execute(player, text)
+    local success, result = Server.Execute(player, text, { channel = channel })
     
     if not success then
         Server.ReplyError(player, result or "Command failed")

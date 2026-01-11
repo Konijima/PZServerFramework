@@ -5,6 +5,7 @@ require "ISUI/ISTextEntryBox"
 require "ISUI/ISScrollingListBox"
 require "ISUI/ISLabel"
 require "ISUI/ISLayoutManager"
+require "ISUI/ISContextMenu"
 require "ChatSystem/Definitions"
 require "ChatSystem/Client"
 
@@ -41,6 +42,16 @@ function ISCustomChat:initialise()
     
     -- Timer to re-enable key presses after sending message
     self.timerTextEntry = 0
+    
+    -- Tab system
+    self.tabs = {}           -- { [channel or "pm:username"] = button }
+    self.pmTabs = {}         -- { [username] = button } - PM conversation tabs
+    self.tabHeight = 20
+    self.unreadMessages = {} -- { [channel or "pm:username"] = count }
+    self.flashingTabs = {}   -- { [channel or "pm:username"] = true }
+    self.flashTimer = 0
+    self.flashState = false
+    self.newPmBtn = nil      -- "+" button for new PM
 end
 
 function ISCustomChat:createChildren()
@@ -53,7 +64,6 @@ function ISCustomChat:createChildren()
     local bottomPadding = 15  -- Increased to avoid resize handle
     
     -- Lock button in title bar (to the left of the close button)
-    -- Close button is at x=3, so we put lock button next to it
     self.lockButton = ISButton:new(btnSize + 6, 0, btnSize, th, "", self, ISCustomChat.onLockClick)
     self.lockButton:initialise()
     self.lockButton:instantiate()
@@ -65,15 +75,7 @@ function ISCustomChat:createChildren()
     self.lockButton:setImage(getTexture("media/ui/inventoryPanes/Button_LockOpen.png"))
     self:addChild(self.lockButton)
     
-    -- Channel selector button
-    self.channelBtn = ISButton:new(padding, th + padding, 80, 20, "Local", self, ISCustomChat.onChannelClick)
-    self.channelBtn:initialise()
-    self.channelBtn:instantiate()
-    self.channelBtn.borderColor = { r = 0.5, g = 0.5, b = 0.5, a = 1 }
-    self.channelBtn.backgroundColor = { r = 0.2, g = 0.2, b = 0.2, a = 0.8 }
-    self:addChild(self.channelBtn)
-    
-    -- Settings gear button
+    -- Settings gear button (in title bar area, right side)
     self.gearBtn = ISButton:new(self.width - btnSize - padding, th + padding, btnSize, btnSize, "", self, ISCustomChat.onGearClick)
     self.gearBtn:initialise()
     self.gearBtn:instantiate()
@@ -86,9 +88,14 @@ function ISCustomChat:createChildren()
     self.gearBtn.anchorBottom = false
     self:addChild(self.gearBtn)
     
-    -- Chat text panel
-    local chatY = th + btnSize + padding * 2
-    local chatHeight = self.height - chatY - entryHeight - bottomPadding - padding
+    -- Create channel tabs
+    self:createTabs()
+    
+    -- Chat text panel (leave space for tabs and typing indicator)
+    local typingIndicatorHeight = 16
+    local tabY = th + padding
+    local chatY = tabY + self.tabHeight + padding
+    local chatHeight = self.height - chatY - entryHeight - bottomPadding - padding - typingIndicatorHeight
     
     self.chatText = ISRichTextPanel:new(padding, chatY, self.width - padding * 2, chatHeight)
     self.chatText:initialise()
@@ -135,8 +142,8 @@ function ISCustomChat:createChildren()
     self.typingUsers = {}
     
     -- Set minimum size
-    self.minimumWidth = 250
-    self.minimumHeight = 150
+    self.minimumWidth = 300
+    self.minimumHeight = 180
     
     -- Command history
     self.commandHistory = {}
@@ -151,18 +158,339 @@ function ISCustomChat:createChildren()
     end)
     
     ChatSystem.Events.OnChannelChanged:Add(function(channel)
-        self:updateChannelButton()
-        self:rebuildText()  -- Rebuild text when channel changes to filter messages
+        self:updateTabs()
+        self:rebuildText()
     end)
     
     -- Register for typing indicator events
-    ChatSystem.Events.OnTypingChanged:Add(function(channel, users)
-        self:updateTypingIndicator(channel, users)
+    ChatSystem.Events.OnTypingChanged:Add(function(channel, users, target)
+        self:updateTypingIndicator(channel, users, target)
     end)
     
     -- Initial state
-    self:updateChannelButton()
+    self:updateTabs()
     self:unfocus()
+end
+
+-- ==========================================================
+-- Tab System
+-- ==========================================================
+
+function ISCustomChat:createTabs()
+    local th = self:titleBarHeight()
+    local padding = 5
+    local tabY = th + padding
+    
+    -- Remove existing tabs
+    for _, tab in pairs(self.tabs) do
+        self:removeChild(tab)
+    end
+    self.tabs = {}
+    
+    -- Remove existing PM tabs
+    for _, tab in pairs(self.pmTabs) do
+        self:removeChild(tab)
+    end
+    self.pmTabs = {}
+    
+    -- Remove new PM button if exists
+    if self.newPmBtn then
+        self:removeChild(self.newPmBtn)
+        self.newPmBtn = nil
+    end
+    
+    local channels = ChatSystem.Client.GetAvailableChannels()
+    local conversations = ChatSystem.Client.GetConversations()
+    
+    -- Count total tabs needed
+    local numConversations = 0
+    for _ in pairs(conversations) do
+        numConversations = numConversations + 1
+    end
+    
+    local tabX = padding
+    local baseTabWidth = 50
+    local pmTabWidth = 60
+    local newPmBtnWidth = 22
+    local gearSpace = 25
+    
+    -- Calculate available width
+    local availableWidth = self.width - padding * 2 - gearSpace - newPmBtnWidth - 4
+    local totalTabs = #channels + numConversations
+    local tabWidth = baseTabWidth
+    
+    if totalTabs > 0 then
+        local neededWidth = (#channels * baseTabWidth) + (numConversations * pmTabWidth) + (totalTabs * 2)
+        if neededWidth > availableWidth then
+            -- Shrink tabs to fit
+            tabWidth = math.floor((availableWidth - (totalTabs * 2)) / totalTabs)
+            tabWidth = math.max(tabWidth, 30) -- Minimum width
+        end
+    end
+    
+    -- Create channel tabs
+    for i, channel in ipairs(channels) do
+        local shortNames = {
+            [ChatSystem.ChannelType.LOCAL] = "Local",
+            [ChatSystem.ChannelType.GLOBAL] = "Global",
+            [ChatSystem.ChannelType.FACTION] = "Fac",
+            [ChatSystem.ChannelType.SAFEHOUSE] = "Safe",
+            [ChatSystem.ChannelType.ADMIN] = "Admin",
+            [ChatSystem.ChannelType.RADIO] = "Radio",
+        }
+        local tabName = shortNames[channel] or channel:sub(1, 5)
+        
+        local tab = ISButton:new(tabX, tabY, tabWidth, self.tabHeight, tabName, self, ISCustomChat.onTabClick)
+        tab:initialise()
+        tab:instantiate()
+        tab.internal = channel
+        tab.isChannel = true
+        tab.borderColor = { r = 0.4, g = 0.4, b = 0.4, a = 0.8 }
+        tab.backgroundColor = { r = 0.15, g = 0.15, b = 0.15, a = 0.8 }
+        tab.backgroundColorMouseOver = { r = 0.25, g = 0.25, b = 0.25, a = 0.9 }
+        tab.font = UIFont.Small
+        self:addChild(tab)
+        
+        self.tabs[channel] = tab
+        if not self.unreadMessages[channel] then
+            self.unreadMessages[channel] = 0
+        end
+        
+        tabX = tabX + tabWidth + 2
+    end
+    
+    -- Create PM conversation tabs with close buttons
+    local pmTabWidth = tabWidth - 16  -- Smaller to make room for close button
+    local closeButtonSize = 14
+    
+    for username, convData in pairs(conversations) do
+        local pmKey = "pm:" .. username
+        local displayName = username:sub(1, 5)
+        if #username > 5 then
+            displayName = displayName .. ".."
+        end
+        
+        -- Create the tab button
+        local tab = ISButton:new(tabX, tabY, pmTabWidth, self.tabHeight, displayName, self, ISCustomChat.onPmTabClick)
+        tab:initialise()
+        tab:instantiate()
+        tab.internal = username
+        tab.isPmTab = true
+        tab.borderColor = { r = 0.4, g = 0.4, b = 0.4, a = 0.8 }
+        tab.backgroundColor = { r = 0.15, g = 0.15, b = 0.15, a = 0.8 }
+        tab.backgroundColorMouseOver = { r = 0.25, g = 0.25, b = 0.25, a = 0.9 }
+        tab.font = UIFont.Small
+        tab:setTooltip(username)
+        self:addChild(tab)
+        
+        -- Create close button for the PM tab
+        local closeBtn = ISButton:new(tabX + pmTabWidth, tabY, closeButtonSize, self.tabHeight, "x", self, ISCustomChat.onClosePmTabClick)
+        closeBtn:initialise()
+        closeBtn:instantiate()
+        closeBtn.internal = username
+        closeBtn.borderColor = { r = 0.5, g = 0.3, b = 0.3, a = 0.8 }
+        closeBtn.backgroundColor = { r = 0.2, g = 0.1, b = 0.1, a = 0.8 }
+        closeBtn.backgroundColorMouseOver = { r = 0.5, g = 0.2, b = 0.2, a = 0.9 }
+        closeBtn.textColor = { r = 1, g = 0.6, b = 0.6, a = 1 }
+        closeBtn.font = UIFont.Small
+        closeBtn:setTooltip("Close conversation")
+        self:addChild(closeBtn)
+        tab.closeBtn = closeBtn
+        
+        self.pmTabs[username] = tab
+        self.tabs[pmKey] = tab
+        if not self.unreadMessages[pmKey] then
+            self.unreadMessages[pmKey] = convData.unread or 0
+        end
+        
+        tabX = tabX + pmTabWidth + closeButtonSize + 2
+    end
+    
+    -- Create "+" button for new PM (only in multiplayer)
+    if isClient() or isServer() then
+        self.newPmBtn = ISButton:new(tabX, tabY, newPmBtnWidth, self.tabHeight, "+", self, ISCustomChat.onNewPmClick)
+        self.newPmBtn:initialise()
+        self.newPmBtn:instantiate()
+        self.newPmBtn.borderColor = { r = 0.4, g = 0.6, b = 0.4, a = 0.8 }
+        self.newPmBtn.backgroundColor = { r = 0.1, g = 0.2, b = 0.1, a = 0.8 }
+        self.newPmBtn.backgroundColorMouseOver = { r = 0.2, g = 0.35, b = 0.2, a = 0.9 }
+        self.newPmBtn.textColor = { r = 0.5, g = 1, b = 0.5, a = 1 }
+        self.newPmBtn.font = UIFont.Small
+        self.newPmBtn:setTooltip("Start new conversation")
+        self:addChild(self.newPmBtn)
+    end
+    
+    self:updateTabs()
+end
+
+function ISCustomChat:onTabClick(button)
+    local channel = button.internal
+    if channel then
+        -- Deactivate any PM conversation
+        ChatSystem.Client.DeactivateConversation()
+        ChatSystem.Client.SetChannel(channel)
+        -- Clear unread count for this channel
+        self.unreadMessages[channel] = 0
+        self.flashingTabs[channel] = nil
+        self:updateTabs()
+        self:rebuildText()
+    end
+end
+
+function ISCustomChat:onPmTabClick(button)
+    local username = button.internal
+    if username then
+        ChatSystem.Client.OpenConversation(username)
+        local pmKey = "pm:" .. username
+        self.unreadMessages[pmKey] = 0
+        self.flashingTabs[pmKey] = nil
+        self:updateTabs()
+        self:rebuildText()
+    end
+end
+
+function ISCustomChat:onNewPmClick()
+    -- Refresh player list first
+    ChatSystem.Client.RefreshPlayers()
+    
+    -- Show dropdown of online players
+    local x = self:getAbsoluteX() + (self.newPmBtn and self.newPmBtn:getX() or 0)
+    local y = self:getAbsoluteY() + (self.newPmBtn and (self.newPmBtn:getY() + self.newPmBtn:getHeight()) or 0)
+    
+    local context = ISContextMenu.get(0, x, y)
+    
+    local players = ChatSystem.Client.GetOnlinePlayers()
+    local myUsername = getPlayer() and getPlayer():getUsername() or ""
+    
+    local hasPlayers = false
+    for _, playerName in ipairs(players) do
+        if playerName ~= myUsername then
+            context:addOption(playerName, self, ISCustomChat.onSelectPlayerForPm, playerName)
+            hasPlayers = true
+        end
+    end
+    
+    if not hasPlayers then
+        context:addOption("No other players online", nil)
+    end
+end
+
+function ISCustomChat:onSelectPlayerForPm(username)
+    ChatSystem.Client.OpenConversation(username)
+    self:createTabs()
+    self:rebuildText()
+end
+
+function ISCustomChat:onClosePmTabClick(button)
+    local username = button.internal
+    if username then
+        self:onClosePmTab(username)
+    end
+end
+
+function ISCustomChat:onClosePmTab(username)
+    ChatSystem.Client.CloseConversation(username)
+    local pmKey = "pm:" .. username
+    self.unreadMessages[pmKey] = nil
+    self.flashingTabs[pmKey] = nil
+    self:createTabs()
+    self:rebuildText()
+end
+
+function ISCustomChat:updateTabs()
+    local currentChannel = ChatSystem.Client.currentChannel
+    local activeConversation = ChatSystem.Client.activeConversation
+    local pmColor = ChatSystem.ChannelColors[ChatSystem.ChannelType.PRIVATE]
+    
+    -- Update channel tabs
+    for channel, tab in pairs(self.tabs) do
+        if tab.isChannel then
+            local color = ChatSystem.ChannelColors[channel] or { r = 1, g = 1, b = 1 }
+            local isActive = (channel == currentChannel and not activeConversation)
+            
+            if isActive then
+                tab.backgroundColor = { r = 0.3, g = 0.3, b = 0.35, a = 0.95 }
+                tab.backgroundColorMouseOver = { r = 0.35, g = 0.35, b = 0.4, a = 1 }
+                tab.borderColor = { r = color.r * 0.8, g = color.g * 0.8, b = color.b * 0.8, a = 1 }
+                tab.textColor = { r = color.r, g = color.g, b = color.b, a = 1 }
+            else
+                tab.backgroundColor = { r = 0.15, g = 0.15, b = 0.15, a = 0.7 }
+                tab.backgroundColorMouseOver = { r = 0.25, g = 0.25, b = 0.25, a = 0.8 }
+                tab.borderColor = { r = 0.4, g = 0.4, b = 0.4, a = 0.6 }
+                tab.textColor = { r = color.r * 0.6, g = color.g * 0.6, b = color.b * 0.6, a = 0.8 }
+            end
+            
+            -- Update title with unread count
+            local unread = self.unreadMessages[channel] or 0
+            local shortNames = {
+                [ChatSystem.ChannelType.LOCAL] = "Local",
+                [ChatSystem.ChannelType.GLOBAL] = "Global",
+                [ChatSystem.ChannelType.FACTION] = "Fac",
+                [ChatSystem.ChannelType.SAFEHOUSE] = "Safe",
+                [ChatSystem.ChannelType.ADMIN] = "Admin",
+                [ChatSystem.ChannelType.RADIO] = "Radio",
+            }
+            local tabName = shortNames[channel] or channel:sub(1, 5)
+            
+            if unread > 0 and not isActive then
+                tab:setTitle(tabName .. "(" .. (unread > 9 and "9+" or unread) .. ")")
+            else
+                tab:setTitle(tabName)
+            end
+        end
+    end
+    
+    -- Update PM tabs
+    for username, tab in pairs(self.pmTabs) do
+        local isActive = (activeConversation == username)
+        local pmKey = "pm:" .. username
+        
+        if isActive then
+            tab.backgroundColor = { r = 0.35, g = 0.25, b = 0.35, a = 0.95 }
+            tab.backgroundColorMouseOver = { r = 0.4, g = 0.3, b = 0.4, a = 1 }
+            tab.borderColor = { r = pmColor.r * 0.8, g = pmColor.g * 0.8, b = pmColor.b * 0.8, a = 1 }
+            tab.textColor = { r = pmColor.r, g = pmColor.g, b = pmColor.b, a = 1 }
+        else
+            tab.backgroundColor = { r = 0.15, g = 0.15, b = 0.15, a = 0.7 }
+            tab.backgroundColorMouseOver = { r = 0.25, g = 0.25, b = 0.25, a = 0.8 }
+            tab.borderColor = { r = 0.4, g = 0.4, b = 0.4, a = 0.6 }
+            tab.textColor = { r = pmColor.r * 0.6, g = pmColor.g * 0.6, b = pmColor.b * 0.6, a = 0.8 }
+        end
+        
+        -- Update title with unread count
+        local convData = ChatSystem.Client.conversations[username]
+        local unread = convData and convData.unread or 0
+        local displayName = username:sub(1, 6)
+        if #username > 6 then
+            displayName = displayName .. ".."
+        end
+        
+        if unread > 0 and not isActive then
+            tab:setTitle(displayName .. "(" .. (unread > 9 and "9+" or unread) .. ")")
+        else
+            tab:setTitle(displayName)
+        end
+    end
+    
+    -- Refresh typing indicator
+    self:refreshTypingLabel()
+end
+
+function ISCustomChat:refreshTabs()
+    -- Check if we need to add new PM tabs
+    local conversations = ChatSystem.Client.GetConversations()
+    local needsRebuild = false
+    
+    for username, _ in pairs(conversations) do
+        if not self.pmTabs[username] then
+            needsRebuild = true
+            break
+        end
+    end
+    
+    if needsRebuild then
+        self:createTabs()
+    end
 end
 
 -- ==========================================================
@@ -181,7 +509,33 @@ function ISCustomChat:addMessage(message)
         table.remove(self.messages, 1)
     end
     
-    -- Rebuild text (will filter by current channel)
+    -- Track unread messages for non-active channels or PM conversations
+    local currentChannel = ChatSystem.Client.currentChannel
+    local activeConversation = ChatSystem.Client.activeConversation
+    
+    if message.channel == ChatSystem.ChannelType.PRIVATE then
+        -- For PM messages, check if this is the active conversation
+        local myUsername = getPlayer() and getPlayer():getUsername() or ""
+        local otherPerson = message.author
+        if message.metadata and message.metadata.to and message.author == myUsername then
+            otherPerson = message.metadata.to
+        end
+        
+        if activeConversation ~= otherPerson then
+            -- Not viewing this conversation, mark as unread (handled in Client.lua)
+            local pmKey = "pm:" .. otherPerson
+            self.flashingTabs[pmKey] = true
+            self:refreshTabs()  -- Make sure the tab exists
+            self:updateTabs()
+        end
+    elseif message.channel ~= currentChannel or activeConversation then
+        -- Not on this channel tab (or we're in a PM conversation)
+        self.unreadMessages[message.channel] = (self.unreadMessages[message.channel] or 0) + 1
+        self.flashingTabs[message.channel] = true
+        self:updateTabs()
+    end
+    
+    -- Rebuild text (will filter by current channel or conversation)
     self:rebuildText()
     
     -- Reset fade timer
@@ -219,13 +573,6 @@ function ISCustomChat:formatMessage(message)
     -- Regular message: Author name
     line = line .. " <SPACE> <RGB:1,1,1>" .. message.author .. ":"
     
-    -- PM indicator
-    if message.channel == ChatSystem.ChannelType.PRIVATE then
-        if message.metadata and message.metadata.to then
-            line = line .. " <SPACE> <RGB:0.8,0.5,0.8>->" .. message.metadata.to .. ":"
-        end
-    end
-    
     -- Message text
     line = line .. " <SPACE> <RGB:" .. string.format("%.1f,%.1f,%.1f", color.r, color.g, color.b) .. ">" .. message.text
     
@@ -242,17 +589,31 @@ function ISCustomChat:rebuildText()
     local scrolledToBottom = (self.chatText:getScrollHeight() <= self.chatText:getHeight()) or (vscroll and vscroll.pos == 1)
     
     local currentChannel = ChatSystem.Client.currentChannel
+    local activeConversation = ChatSystem.Client.activeConversation
+    local myUsername = getPlayer() and getPlayer():getUsername() or ""
     local lines = {}
     
-    -- Filter messages by current channel (but always show global system messages)
-    for _, message in ipairs(self.messages) do
-        local showMessage = message.channel == currentChannel
-        -- Always show system messages from global channel (announcements, etc.)
-        if message.isSystem and message.channel == ChatSystem.ChannelType.GLOBAL then
-            showMessage = true
-        end
-        if showMessage then
+    if activeConversation then
+        -- Show PM conversation messages
+        local conversationMessages = ChatSystem.Client.GetConversationMessages(activeConversation)
+        for _, message in ipairs(conversationMessages) do
             table.insert(lines, self:formatMessage(message))
+        end
+    else
+        -- Filter messages by current channel (but always show global system messages)
+        for _, message in ipairs(self.messages) do
+            local showMessage = message.channel == currentChannel
+            -- Always show system messages from global channel (announcements, etc.)
+            if message.isSystem and message.channel == ChatSystem.ChannelType.GLOBAL then
+                showMessage = true
+            end
+            -- Don't show PMs in regular channel tabs
+            if message.channel == ChatSystem.ChannelType.PRIVATE then
+                showMessage = false
+            end
+            if showMessage then
+                table.insert(lines, self:formatMessage(message))
+            end
         end
     end
     
@@ -284,26 +645,41 @@ function ISCustomChat:onCommandEntered()
     ChatSystem.Client.StopTyping()
     
     if text and text ~= "" then
-        -- Check if user typed a channel command (e.g., /l, /g)
-        -- If so, switch channel and extract the message
-        local detectedChannel, cleanText = ChatSystem.Client.DetectChannelPrefix(text)
-        if detectedChannel then
-            -- Switch to that channel
-            ChatSystem.Client.SetChannel(detectedChannel)
-            text = cleanText
-        end
+        local activeConversation = ChatSystem.Client.activeConversation
         
-        -- Only send if there's actual message content
-        if text and text ~= "" and text ~= " " then
-            -- Add to history (original input)
-            table.insert(chat.commandHistory, 1, chat.textEntry:getText())
+        -- If we're in a PM conversation, send as PM
+        if activeConversation then
+            -- Add to history
+            table.insert(chat.commandHistory, 1, text)
             if #chat.commandHistory > 50 then
                 table.remove(chat.commandHistory)
             end
             chat.historyIndex = 0
             
-            -- Send message using current channel (no prefix needed)
-            ChatSystem.Client.SendMessageDirect(text)
+            -- Send as PM
+            ChatSystem.Client.SendPrivateMessage(activeConversation, text)
+        else
+            -- Check if user typed a channel command (e.g., /l, /g)
+            -- If so, switch channel and extract the message
+            local detectedChannel, cleanText = ChatSystem.Client.DetectChannelPrefix(text)
+            if detectedChannel then
+                -- Switch to that channel
+                ChatSystem.Client.SetChannel(detectedChannel)
+                text = cleanText
+            end
+            
+            -- Only send if there's actual message content
+            if text and text ~= "" and text ~= " " then
+                -- Add to history (original input)
+                table.insert(chat.commandHistory, 1, chat.textEntry:getText())
+                if #chat.commandHistory > 50 then
+                    table.remove(chat.commandHistory)
+                end
+                chat.historyIndex = 0
+                
+                -- Send message using current channel (no prefix needed)
+                ChatSystem.Client.SendMessageDirect(text)
+            end
         end
     end
     
@@ -315,9 +691,15 @@ function ISCustomChat:onTextChange()
     local text = chat.textEntry:getText()
     
     if text and text ~= "" then
-        -- Parse to detect which channel user is typing in
-        local channel, _, _ = ChatSystem.Client.ParseInput(text)
-        ChatSystem.Client.StartTyping(channel)
+        local activeConversation = ChatSystem.Client.activeConversation
+        if activeConversation then
+            -- In a PM conversation, send typing to that specific person
+            ChatSystem.Client.StartTyping(ChatSystem.ChannelType.PRIVATE, activeConversation)
+        else
+            -- Parse to detect which channel user is typing in
+            local channel, _, _ = ChatSystem.Client.ParseInput(text)
+            ChatSystem.Client.StartTyping(channel)
+        end
     else
         ChatSystem.Client.StopTyping()
     end
@@ -400,38 +782,10 @@ end
 -- Channel Management
 -- ==========================================================
 
-function ISCustomChat:onChannelClick()
-    local context = ISContextMenu.get(0, self:getAbsoluteX() + self.channelBtn:getX(), self:getAbsoluteY() + self.channelBtn:getY() + self.channelBtn:getHeight())
-    
-    local channels = ChatSystem.Client.GetAvailableChannels()
-    for _, channel in ipairs(channels) do
-        local name = ChatSystem.ChannelNames[channel]
-        local color = ChatSystem.ChannelColors[channel]
-        local option = context:addOption(name, self, ISCustomChat.onChannelSelect, channel)
-        
-        if channel == ChatSystem.Client.currentChannel then
-            context:setOptionChecked(option, true)
-        end
-    end
-end
-
-function ISCustomChat:onChannelSelect(channel)
-    ChatSystem.Client.SetChannel(channel)
-end
-
-function ISCustomChat:updateChannelButton()
-    local channel = ChatSystem.Client.currentChannel
-    local name = ChatSystem.ChannelNames[channel] or channel
-    local color = ChatSystem.ChannelColors[channel] or { r = 1, g = 1, b = 1 }
-    
-    self.channelBtn:setTitle(name)
-    self.channelBtn.textColor = { r = color.r, g = color.g, b = color.b, a = 1 }
-    
-    -- Refresh typing indicator for new channel
-    self:refreshTypingLabel()
-end
-
 function ISCustomChat:cycleChannel()
+    -- Deactivate any PM conversation first
+    ChatSystem.Client.DeactivateConversation()
+    
     local channels = ChatSystem.Client.GetAvailableChannels()
     local currentIdx = 1
     
@@ -443,10 +797,18 @@ function ISCustomChat:cycleChannel()
     end
     
     local nextIdx = (currentIdx % #channels) + 1
-    ChatSystem.Client.SetChannel(channels[nextIdx])
+    local nextChannel = channels[nextIdx]
+    
+    -- Clear unread for the channel we're switching to
+    self.unreadMessages[nextChannel] = 0
+    self.flashingTabs[nextChannel] = nil
+    
+    ChatSystem.Client.SetChannel(nextChannel)
+    self:updateTabs()
+    self:rebuildText()
     
     -- Update text entry with new channel command
-    local prefix = ChatSystem.Client.GetChannelCommand(channels[nextIdx])
+    local prefix = ChatSystem.Client.GetChannelCommand(nextChannel)
     self.textEntry:setText(prefix)
 end
 
@@ -547,24 +909,52 @@ end
 
 ---@param channel string
 ---@param users table Array of usernames
-function ISCustomChat:updateTypingIndicator(channel, users)
-    -- Store for the current channel
-    self.typingUsers[channel] = users
+---@param target string|nil Optional target for PM typing
+function ISCustomChat:updateTypingIndicator(channel, users, target)
+    local key = channel
     
-    -- Update display for the currently selected channel
+    -- For PM typing, use a special key based on the typer (who is typing to me)
+    if channel == ChatSystem.ChannelType.PRIVATE and target then
+        -- When someone is typing a PM to me, target is my username
+        -- We need to store it by who is typing
+        -- The "users" array contains who is typing
+        if #users > 0 then
+            key = "pm:" .. users[1]  -- The person typing to me
+        end
+    elseif channel == ChatSystem.ChannelType.PRIVATE then
+        -- Store by channel if no specific target
+        key = channel
+    end
+    
+    -- Store for the appropriate key
+    self.typingUsers[key] = users
+    
+    -- Update display for the currently selected channel/conversation
     self:refreshTypingLabel()
 end
 
 function ISCustomChat:refreshTypingLabel()
-    local channel = ChatSystem.Client.currentChannel
-    local users = self.typingUsers[channel] or {}
+    local activeConversation = ChatSystem.Client.activeConversation
+    local users = {}
+    local color
+    
+    if activeConversation then
+        -- Check PM typing for this conversation
+        local pmKey = "pm:" .. activeConversation
+        users = self.typingUsers[pmKey] or {}
+        color = ChatSystem.ChannelColors[ChatSystem.ChannelType.PRIVATE] or { r = 0.8, g = 0.5, b = 0.8 }
+    else
+        -- Check channel typing
+        local channel = ChatSystem.Client.currentChannel
+        users = self.typingUsers[channel] or {}
+        color = ChatSystem.ChannelColors[channel] or { r = 0.6, g = 0.6, b = 0.6 }
+    end
     
     if #users == 0 then
         self.typingLabel:setVisible(false)
         return
     end
     
-    local color = ChatSystem.ChannelColors[channel] or { r = 0.6, g = 0.6, b = 0.6 }
     local text = ""
     
     if #users == 1 then
@@ -598,6 +988,41 @@ function ISCustomChat:prerender()
         self.backgroundColor.a = self.maxOpaque
     end
     
+    -- Handle tab flashing for unread messages
+    self.flashTimer = self.flashTimer + (UIManager.getMillisSinceLastRender() / 1000)
+    if self.flashTimer > 0.5 then
+        self.flashTimer = 0
+        self.flashState = not self.flashState
+        
+        local pmColor = ChatSystem.ChannelColors[ChatSystem.ChannelType.PRIVATE] or { r = 0.8, g = 0.5, b = 0.8 }
+        
+        -- Update flashing tabs
+        for key, isFlashing in pairs(self.flashingTabs) do
+            -- Check if it's a channel tab or PM tab
+            local tab = self.tabs[key]
+            local color = ChatSystem.ChannelColors[key] or { r = 1, g = 1, b = 1 }
+            
+            -- Check PM tabs if not found in channel tabs
+            if not tab and key:sub(1, 3) == "pm:" then
+                local username = key:sub(4)
+                tab = self.pmTabs[username]
+                color = pmColor
+            end
+            
+            if isFlashing and tab then
+                if self.flashState then
+                    -- Bright flash
+                    tab.backgroundColor = { r = color.r * 0.4, g = color.g * 0.4, b = color.b * 0.4, a = 0.9 }
+                    tab.textColor = { r = 1, g = 1, b = 1, a = 1 }
+                else
+                    -- Normal dim
+                    tab.backgroundColor = { r = 0.15, g = 0.15, b = 0.15, a = 0.7 }
+                    tab.textColor = { r = color.r * 0.6, g = color.g * 0.6, b = color.b * 0.6, a = 0.8 }
+                end
+            end
+        end
+    end
+    
     ISCollapsableWindow.prerender(self)
 end
 
@@ -608,12 +1033,15 @@ end
 function ISCustomChat:onResize()
     ISCollapsableWindow.onResize(self)
     
-    -- Manually reposition gear button (anchoring doesn't work well for buttons)
+    -- Manually reposition gear button
     local btnSize = 20
     local padding = 5
     local th = self:titleBarHeight()
     self.gearBtn:setX(self.width - btnSize - padding)
     self.gearBtn:setY(th + padding)
+    
+    -- Recreate tabs to fit new width
+    self:createTabs()
 end
 
 -- ==========================================================
@@ -644,11 +1072,13 @@ function ISCustomChat:updateLockState()
     self.textEntry:setWidth(self.width - padding * 2)
     self.textEntry:setHeight(entryHeight)
     
-    -- Update chat panel height
+    -- Update chat panel height (account for tabs and typing indicator)
     local th = self:titleBarHeight()
-    local btnSize = 16
-    local chatY = th + btnSize + padding * 2
-    local chatHeight = self.height - chatY - entryHeight - bottomPadding - padding
+    local typingIndicatorHeight = 16
+    local tabY = th + padding
+    local chatY = tabY + self.tabHeight + padding
+    local chatHeight = self.height - chatY - entryHeight - bottomPadding - padding - typingIndicatorHeight
+    self.chatText:setY(chatY)
     self.chatText:setHeight(chatHeight)
 end
 
