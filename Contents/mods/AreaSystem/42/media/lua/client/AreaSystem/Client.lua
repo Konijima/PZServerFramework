@@ -1,9 +1,9 @@
+if isServer() then return end
 require "AreaSystem/Definitions"
--- require "KoniLib/MP" -- Implicit
+local MP = require("KoniLib/MP")
 
 AreaSystem.Client = {}
 local Client = AreaSystem.Client
-local MP = KoniLib.MP
 
 Client.Data = {
     Areas = {},

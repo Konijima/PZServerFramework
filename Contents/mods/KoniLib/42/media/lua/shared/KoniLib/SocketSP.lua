@@ -2,6 +2,15 @@ if not KoniLib then KoniLib = {} end
 
 local Socket = require("KoniLib/Socket")
 
+-- Helper function to check if a table is empty (replacement for next() which isn't available in PZ)
+local function tableIsEmpty(t)
+    if not t then return true end
+    for _ in pairs(t) do
+        return false
+    end
+    return true
+end
+
 ---@class SocketSP
 ---Singleplayer socket that combines client and server functionality
 ---Acts as a loopback - client calls are immediately processed by server logic
@@ -82,7 +91,7 @@ function SocketSP:connect(auth)
     self.connections[username] = {
         player = player,
         context = context,
-        connectedAt = os.time()
+        connectedAt = getTimestampMs()
     }
     self.playerRooms[username] = {}
     
@@ -413,7 +422,7 @@ function SocketSP:leave(player, room)
     
     if self.serverRooms[room] then
         self.serverRooms[room][username] = nil
-        if not next(self.serverRooms[room]) then
+        if tableIsEmpty(self.serverRooms[room]) then
             self.serverRooms[room] = nil
         end
     end
@@ -433,7 +442,7 @@ function SocketSP:leaveAll(player)
         for room, _ in pairs(rooms) do
             if self.serverRooms[room] then
                 self.serverRooms[room][username] = nil
-                if not next(self.serverRooms[room]) then
+                if tableIsEmpty(self.serverRooms[room]) then
                     self.serverRooms[room] = nil
                 end
             end

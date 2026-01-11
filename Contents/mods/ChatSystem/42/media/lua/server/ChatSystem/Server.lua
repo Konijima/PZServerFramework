@@ -1,10 +1,19 @@
 if isClient() then return end
 
 require "ChatSystem/Definitions"
+local Socket = require("KoniLib/Socket")
+
+-- Helper function to check if a table is empty (replacement for next() which isn't available in PZ)
+local function tableIsEmpty(t)
+    if not t then return true end
+    for _ in pairs(t) do
+        return false
+    end
+    return true
+end
 
 ChatSystem.Server = {}
 local Server = ChatSystem.Server
-local Socket = KoniLib.Socket
 
 -- Create the chat namespace
 local chatSocket = Socket.of("/chat")
@@ -506,7 +515,7 @@ Events.EveryOneMinute.Add(cleanupTypingIndicators)
 ---@param color table? Optional color override {r, g, b}
 function Server.BroadcastSystemMessage(text, color)
     -- Only broadcast if socket is connected (SP) or has connections (MP)
-    if not chatSocket.connected and not next(chatSocket.connections or {}) then
+    if not chatSocket.connected and tableIsEmpty(chatSocket.connections or {}) then
         Socket.Log("Skipping broadcast (not connected): " .. text)
         return
     end

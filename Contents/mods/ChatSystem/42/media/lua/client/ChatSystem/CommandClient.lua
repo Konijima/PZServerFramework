@@ -1,10 +1,11 @@
+if isServer() then return end
 require "ChatSystem/Definitions"
 require "ChatSystem/CommandAPI"
+local Socket = require("KoniLib/Socket")
 
 ChatSystem.Commands.Client = {}
 local Client = ChatSystem.Commands.Client
 local Commands = ChatSystem.Commands
-local Socket = KoniLib.Socket
 
 -- Client state
 Client.socket = nil

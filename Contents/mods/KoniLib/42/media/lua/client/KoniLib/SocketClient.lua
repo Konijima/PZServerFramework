@@ -1,3 +1,4 @@
+if isServer() then return end
 if not KoniLib then KoniLib = {} end
 
 local Socket = require("KoniLib/Socket")
@@ -34,12 +35,14 @@ function SocketClient.new(namespace, options)
     -- Auto-connect if auth provided or autoConnect is true
     if self.autoConnect then
         -- Delay connect to next tick to allow event registration
-        Events.OnTick.Add(function()
+        local autoConnectFunc
+        autoConnectFunc = function()
+            Events.OnTick.Remove(autoConnectFunc)
             if not self.connected then
                 self:connect(self.auth)
             end
-            Events.OnTick.Remove(self._autoConnectFunc)
-        end)
+        end
+        Events.OnTick.Add(autoConnectFunc)
     end
     
     Socket.Log("SocketClient created for: " .. namespace)
@@ -159,7 +162,7 @@ function SocketClient:emit(event, data, ackCallback)
         local ackId = Socket.GenerateAckId()
         self.pendingAcks[ackId] = {
             callback = ackCallback,
-            timestamp = os.time()
+            timestamp = getTimestampMs()
         }
         args.ackId = ackId
     end
@@ -182,7 +185,7 @@ function SocketClient:joinRoom(room, ackCallback)
         local ackId = Socket.GenerateAckId()
         self.pendingAcks[ackId] = {
             callback = ackCallback,
-            timestamp = os.time()
+            timestamp = getTimestampMs()
         }
         args.ackId = ackId
     end

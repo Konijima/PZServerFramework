@@ -1,5 +1,6 @@
+if isClient() then return end
 if not KoniLib then KoniLib = {} end
-local MP = KoniLib.MP
+local MP = require("KoniLib/MP")
 
 -- Events are defined in shared/KoniLib/CustomEvents.lua and registered using KoniLib/Event.lua
 

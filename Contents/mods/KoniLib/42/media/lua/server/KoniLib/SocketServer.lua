@@ -1,7 +1,17 @@
+if isClient() then return end
 if not KoniLib then KoniLib = {} end
 
 local Socket = require("KoniLib/Socket")
 local MP = require("KoniLib/MP")
+
+-- Helper function to check if a table is empty (replacement for next() which isn't available in PZ)
+local function tableIsEmpty(t)
+    if not t then return true end
+    for _ in pairs(t) do
+        return false
+    end
+    return true
+end
 
 ---@class SocketServer
 ---@field namespace string The namespace this socket belongs to
@@ -295,7 +305,7 @@ function SocketServer:leave(player, room)
     if self.rooms[room] then
         self.rooms[room][username] = nil
         -- Clean up empty rooms
-        if not next(self.rooms[room]) then
+        if tableIsEmpty(self.rooms[room]) then
             self.rooms[room] = nil
         end
     end
@@ -318,7 +328,7 @@ function SocketServer:leaveAll(player)
         for room, _ in pairs(rooms) do
             if self.rooms[room] then
                 self.rooms[room][username] = nil
-                if not next(self.rooms[room]) then
+                if tableIsEmpty(self.rooms[room]) then
                     self.rooms[room] = nil
                 end
             end
@@ -606,7 +616,7 @@ function SocketEmitter:emit(event, data)
     local sent = {}
     
     -- If targeting specific players, emit to them
-    if next(self.targetPlayers) then
+    if not tableIsEmpty(self.targetPlayers) then
         for username, player in pairs(self.targetPlayers) do
             if not self.excludes[username] and not sent[username] then
                 MP.Send(player, Socket.MODULE, Socket.CMD.EMIT, args)
@@ -616,7 +626,7 @@ function SocketEmitter:emit(event, data)
     end
     
     -- If rooms specified, emit to those rooms
-    if next(self.rooms) then
+    if not tableIsEmpty(self.rooms) then
         for room, _ in pairs(self.rooms) do
             local players = self.server:getPlayersInRoom(room)
             for _, player in ipairs(players) do
@@ -630,7 +640,7 @@ function SocketEmitter:emit(event, data)
     end
     
     -- If no rooms and no target players, emit to all connected except excludes
-    if not next(self.rooms) and not next(self.targetPlayers) then
+    if tableIsEmpty(self.rooms) and tableIsEmpty(self.targetPlayers) then
         for username, conn in pairs(self.server.connections) do
             if not self.excludes[username] and conn.player then
                 MP.Send(conn.player, Socket.MODULE, Socket.CMD.EMIT, args)
@@ -672,7 +682,7 @@ function SocketServer:_handleClientMessage(player, command, args)
         self.connections[username] = {
             player = player,
             context = context,
-            connectedAt = os.time()
+            connectedAt = getTimestampMs()
         }
         self.playerRooms[username] = {}
         
