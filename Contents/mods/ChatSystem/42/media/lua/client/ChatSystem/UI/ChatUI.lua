@@ -202,7 +202,7 @@ function ISCustomChat:createTabs()
         self.newPmBtn = nil
     end
     
-    local defaultChannels = { "local", "global" }
+    local defaultChannels = { "global", "local" }
     local channels = (ChatSystem.Client and ChatSystem.Client.GetAvailableChannels and ChatSystem.Client.GetAvailableChannels()) or defaultChannels
     local conversations = (ChatSystem.Client and ChatSystem.Client.GetConversations and ChatSystem.Client.GetConversations()) or {}
     
@@ -442,12 +442,18 @@ function ISCustomChat:updateTabs()
                 ["radio"] = "Radio",
             }
             local tabName = shortNames[channel] or (type(channel) == "string" and channel:sub(1, 5) or "???")
+            local newTitle = tabName
             
             if unread > 0 and not isActive then
-                tab:setTitle(tabName .. "(" .. (unread > 9 and "9+" or unread) .. ")")
-            else
-                tab:setTitle(tabName)
+                newTitle = tabName .. " (" .. (unread > 9 and "9+" or unread) .. ")"
             end
+            
+            tab:setTitle(newTitle)
+            
+            -- Resize button to fit the new title
+            local textWidth = getTextManager():MeasureStringX(tab.font or UIFont.Small, newTitle)
+            local newWidth = math.max(textWidth + 12, 30) -- 12px padding, minimum 30px
+            tab:setWidth(newWidth)
         end
     end
     
@@ -476,15 +482,64 @@ function ISCustomChat:updateTabs()
             displayName = displayName .. ".."
         end
         
+        local newTitle = displayName
         if unread > 0 and not isActive then
-            tab:setTitle(displayName .. "(" .. (unread > 9 and "9+" or unread) .. ")")
-        else
-            tab:setTitle(displayName)
+            newTitle = displayName .. " (" .. (unread > 9 and "9+" or unread) .. ")"
+        end
+        
+        tab:setTitle(newTitle)
+        
+        -- Resize button to fit the new title
+        local textWidth = getTextManager():MeasureStringX(tab.font or UIFont.Small, newTitle)
+        local newWidth = math.max(textWidth + 12, 30) -- 12px padding, minimum 30px
+        tab:setWidth(newWidth)
+        
+        -- Reposition close button next to tab
+        if tab.closeBtn then
+            tab.closeBtn:setX(tab:getX() + tab:getWidth())
         end
     end
     
+    -- Reposition all tabs after resizing to prevent overlaps
+    self:repositionTabs()
+    
     -- Refresh typing indicator
     self:refreshTypingLabel()
+end
+
+--- Reposition all tabs after width changes
+function ISCustomChat:repositionTabs()
+    local padding = 5
+    local tabX = padding
+    local tabY = self:titleBarHeight() + 2
+    
+    -- Get ordered channels list
+    local defaultChannels = { "global", "local" }
+    local channels = (ChatSystem.Client and ChatSystem.Client.GetAvailableChannels and ChatSystem.Client.GetAvailableChannels()) or defaultChannels
+    
+    -- Reposition channel tabs in order
+    for _, channel in ipairs(channels) do
+        local tab = self.tabs[channel]
+        if tab then
+            tab:setX(tabX)
+            tabX = tabX + tab:getWidth() + 2
+        end
+    end
+    
+    -- Reposition PM tabs
+    local closeButtonSize = 14
+    for username, tab in pairs(self.pmTabs) do
+        tab:setX(tabX)
+        if tab.closeBtn then
+            tab.closeBtn:setX(tabX + tab:getWidth())
+        end
+        tabX = tabX + tab:getWidth() + closeButtonSize + 2
+    end
+    
+    -- Reposition the "+" button
+    if self.newPmBtn then
+        self.newPmBtn:setX(tabX)
+    end
 end
 
 function ISCustomChat:refreshTabs()
@@ -570,6 +625,9 @@ function ISCustomChat:formatMessage(message)
     -- Ensure text and author are strings
     local msgText = type(message.text) == "string" and message.text or tostring(message.text or "")
     local msgAuthor = type(message.author) == "string" and message.author or tostring(message.author or "???")
+    
+    -- Convert newlines to <LINE> tags for proper display
+    msgText = msgText:gsub("\n", " <LINE> ")
     
     local line = ""
     
