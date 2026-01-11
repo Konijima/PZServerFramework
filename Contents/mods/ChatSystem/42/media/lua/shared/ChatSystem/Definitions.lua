@@ -7,7 +7,8 @@ ChatSystem.ChannelType = {
     FACTION = "faction",   -- Faction members only
     SAFEHOUSE = "safehouse", -- Safehouse members only
     PRIVATE = "private",   -- Direct messages
-    ADMIN = "admin",       -- Admin chat
+    STAFF = "staff",       -- Staff chat (mods, admins, etc.)
+    ADMIN = "admin",       -- Admin-only chat
     RADIO = "radio",       -- Radio frequency chat
 }
 
@@ -59,6 +60,7 @@ ChatSystem.ChannelColors = {
     [ChatSystem.ChannelType.FACTION] = { r = 0.2, g = 1, b = 0.2 }, -- Green
     [ChatSystem.ChannelType.SAFEHOUSE] = { r = 1, g = 0.6, b = 0.2 }, -- Orange
     [ChatSystem.ChannelType.PRIVATE] = { r = 1, g = 0.5, b = 1 },   -- Pink (for PM conversations)
+    [ChatSystem.ChannelType.STAFF] = { r = 1, g = 0.8, b = 0.2 },   -- Gold/Yellow
     [ChatSystem.ChannelType.ADMIN] = { r = 1, g = 0.2, b = 0.2 },   -- Red
     [ChatSystem.ChannelType.RADIO] = { r = 0.5, g = 1, b = 0.5 },   -- Light green
 }
@@ -70,6 +72,7 @@ ChatSystem.ChannelNames = {
     [ChatSystem.ChannelType.FACTION] = "Faction",
     [ChatSystem.ChannelType.SAFEHOUSE] = "Safehouse",
     [ChatSystem.ChannelType.PRIVATE] = "PM",
+    [ChatSystem.ChannelType.STAFF] = "Staff",
     [ChatSystem.ChannelType.ADMIN] = "Admin",
     [ChatSystem.ChannelType.RADIO] = "Radio",
 }
@@ -80,6 +83,7 @@ ChatSystem.ChannelCommands = {
     [ChatSystem.ChannelType.GLOBAL] = { "/global ", "/g ", "/all " },
     [ChatSystem.ChannelType.FACTION] = { "/faction ", "/f " },
     [ChatSystem.ChannelType.SAFEHOUSE] = { "/safehouse ", "/sh " },
+    [ChatSystem.ChannelType.STAFF] = { "/staff ", "/st " },
     [ChatSystem.ChannelType.ADMIN] = { "/admin ", "/a " },
     [ChatSystem.ChannelType.RADIO] = { "/radio ", "/r " },
 }
@@ -106,6 +110,7 @@ ChatSystem.Settings = {
     enableGlobalChat = true,
     enableFactionChat = true,
     enableSafehouseChat = true,
+    enableStaffChat = true,
     enableAdminChat = true,
     enablePrivateMessages = true,
     
@@ -167,6 +172,7 @@ function ChatSystem.LoadSandboxSettings(silent)
     if sv.EnableGlobalChat ~= nil then ChatSystem.Settings.enableGlobalChat = sv.EnableGlobalChat end
     if sv.EnableFactionChat ~= nil then ChatSystem.Settings.enableFactionChat = sv.EnableFactionChat end
     if sv.EnableSafehouseChat ~= nil then ChatSystem.Settings.enableSafehouseChat = sv.EnableSafehouseChat end
+    if sv.EnableStaffChat ~= nil then ChatSystem.Settings.enableStaffChat = sv.EnableStaffChat end
     if sv.EnableAdminChat ~= nil then ChatSystem.Settings.enableAdminChat = sv.EnableAdminChat end
     if sv.EnablePrivateMessages ~= nil then ChatSystem.Settings.enablePrivateMessages = sv.EnablePrivateMessages end
     

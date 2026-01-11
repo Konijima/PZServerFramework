@@ -35,6 +35,7 @@
 | Faction | `/f`, `/faction` | Faction members only |
 | Safehouse | `/sh`, `/safehouse` | Safehouse members only |
 | Private | `/pm`, `/w`, `/msg` | Direct message to player |
+| Staff | `/staff`, `/st` | Staff-only channel (any access level) |
 | Admin | `/a`, `/admin` | Admin-only channel |
 | Radio | `/r`, `/radio` | Radio frequency chat |
 
@@ -77,11 +78,14 @@ ChatSystem settings are configured through the game's sandbox options menu. Chan
 | Enable Global Chat | boolean | true | Allow server-wide chat |
 | Enable Faction Chat | boolean | true | Allow faction chat |
 | Enable Safehouse Chat | boolean | true | Allow safehouse chat |
+| Enable Staff Chat | boolean | true | Allow staff-only chat (all access levels) |
 | Enable Admin Chat | boolean | true | Allow admin-only chat |
 | Enable Private Messages | boolean | true | Allow direct messages |
 | Chat Slow Mode | 0-60 | 0 | Seconds between messages (0 = disabled) |
 
 **Note:** Local chat is always enabled and cannot be disabled - it serves as the default communication channel.
+
+**Note:** Staff channel uses B42's capability system - players with `hasAdminPower()`, `SeePlayersConnected`, or `AnswerTickets` capabilities are considered staff. Admin channel requires `hasAdminPower()` specifically.
 
 ### Settings in Code
 
@@ -96,6 +100,7 @@ ChatSystem.Settings = {
     enableGlobalChat = true,   -- Global chat toggle
     enableFactionChat = true,  -- Faction chat toggle
     enableSafehouseChat = true,-- Safehouse chat toggle
+    enableStaffChat = true,    -- Staff chat toggle
     enableAdminChat = true,    -- Admin chat toggle
     enablePrivateMessages = true, -- PM toggle
     chatSlowMode = 0,          -- Rate limit (0 = disabled)

@@ -276,6 +276,7 @@ function ISCustomChat:createTabs()
             ["global"] = "Global",
             ["faction"] = "Fac",
             ["safehouse"] = "Safe",
+            ["staff"] = "Staff",
             ["admin"] = "Admin",
             ["radio"] = "Radio",
         }
@@ -475,6 +476,7 @@ function ISCustomChat:updateTabs()
                 ["global"] = "Global",
                 ["faction"] = "Fac",
                 ["safehouse"] = "Safe",
+                ["staff"] = "Staff",
                 ["admin"] = "Admin",
                 ["radio"] = "Radio",
             }

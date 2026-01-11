@@ -64,6 +64,14 @@ option ChatSystem.EnableSafehouseChat
     translation = ChatSystem_EnableSafehouseChat,
 }
 
+option ChatSystem.EnableStaffChat
+{
+    type = boolean,
+    default = true,
+    page = ChatSystem,
+    translation = ChatSystem_EnableStaffChat,
+}
+
 option ChatSystem.EnableAdminChat
 {
     type = boolean,

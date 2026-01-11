@@ -126,7 +126,7 @@ local function getPlayerSafehouse(player)
     return SafeHouse.hasSafehouse(player)
 end
 
---- Check if player is admin
+--- Check if player is admin (has admin power)
 ---@param player IsoPlayer
 ---@return boolean
 local function isPlayerAdmin(player)
@@ -135,24 +135,52 @@ local function isPlayerAdmin(player)
         return true
     end
     
-    -- Check for multiplayer admin capabilities
+    -- Check if player has admin power (highest level)
     local role = player:getRole()
-    if not role then return false end
-    
-    -- Capability might not exist in all contexts
-    if Capability then
-        local success, result = pcall(function()
-            return role:hasCapability(Capability.ManageChat) or 
-                   role:hasCapability(Capability.AdminAccess)
+    if role then
+        local success, hasAdmin = pcall(function()
+            return role:hasAdminPower()
         end)
-        if success then
-            return result
+        if success and hasAdmin then
+            return true
         end
     end
     
-    -- Fallback: check access level
+    -- Fallback: check access level for admin specifically
     local accessLevel = player:getAccessLevel()
-    return accessLevel and accessLevel ~= "None" and accessLevel ~= ""
+    return accessLevel and string.lower(accessLevel) == "admin"
+end
+
+--- Check if player is staff (admin, moderator, or GM)
+--- Uses capability check for SeePlayersConnected as indicator of staff role
+---@param player IsoPlayer
+---@return boolean
+local function isPlayerStaff(player)
+    -- In singleplayer, player is always "staff"
+    if not isClient() and not isServer() then
+        return true
+    end
+    
+    -- Admins are always staff
+    if isPlayerAdmin(player) then
+        return true
+    end
+    
+    -- Check for staff capability (SeePlayersConnected is a good indicator)
+    local role = player:getRole()
+    if role and Capability then
+        local success, hasStaffCap = pcall(function()
+            return role:hasCapability(Capability.SeePlayersConnected) or
+                   role:hasCapability(Capability.AnswerTickets)
+        end)
+        if success and hasStaffCap then
+            return true
+        end
+    end
+    
+    -- Check access level - any non-empty, non-"none" level is staff
+    local accessLevel = player:getAccessLevel()
+    return accessLevel and accessLevel ~= "None" and accessLevel ~= "" and string.lower(accessLevel) ~= "none"
 end
 
 -- ==========================================================
@@ -168,6 +196,7 @@ chatSocket:use(Socket.MIDDLEWARE.CONNECTION, function(player, auth, context, nex
         faction = getPlayerFaction(player),
         safehouse = getPlayerSafehouse(player),
         safehouseId = getPlayerSafehouseId(player),
+        isStaff = isPlayerStaff(player),
         isAdmin = isPlayerAdmin(player),
     }
     
@@ -221,6 +250,10 @@ local function validateIncomingMessage(player, data)
         return false, "Safehouse chat is disabled"
     end
     
+    if channel == ChatSystem.ChannelType.STAFF and not ChatSystem.Settings.enableStaffChat then
+        return false, "Staff chat is disabled"
+    end
+    
     if channel == ChatSystem.ChannelType.ADMIN and not ChatSystem.Settings.enableAdminChat then
         return false, "Admin chat is disabled"
     end
@@ -230,6 +263,10 @@ local function validateIncomingMessage(player, data)
     end
     
     -- Validate channel access (membership/permissions)
+    if channel == ChatSystem.ChannelType.STAFF and not pData.isStaff then
+        return false, "No access to staff chat"
+    end
+    
     if channel == ChatSystem.ChannelType.ADMIN and not pData.isAdmin then
         return false, "No access to admin chat"
     end
@@ -385,6 +422,17 @@ chatSocket:onServer("message", function(player, data, context, ack)
             end
         end
         
+    elseif channel == ChatSystem.ChannelType.STAFF then
+        -- Send to all staff members (admin + moderators)
+        for otherUsername, otherData in pairs(playerData) do
+            if otherData.isStaff then
+                local otherPlayer = getPlayerByName(otherUsername)
+                if otherPlayer then
+                    chatSocket:to(otherPlayer):emit("message", message)
+                end
+            end
+        end
+        
     elseif channel == ChatSystem.ChannelType.RADIO then
         -- Send to players on same frequency
         local frequency = metadata.frequency or 100.0
@@ -412,7 +460,8 @@ chatSocket:onServer("getPlayers", function(player, data, context, ack)
         if p then
             table.insert(players, {
                 username = p:getUsername(),
-                isAdmin = isPlayerAdmin(p)
+                isAdmin = isPlayerAdmin(p),
+                isStaff = isPlayerStaff(p)
             })
         end
     else
@@ -420,7 +469,8 @@ chatSocket:onServer("getPlayers", function(player, data, context, ack)
             local p = onlinePlayers:get(i)
             table.insert(players, {
                 username = p:getUsername(),
-                isAdmin = isPlayerAdmin(p)
+                isAdmin = isPlayerAdmin(p),
+                isStaff = isPlayerStaff(p)
             })
         end
     end
@@ -447,6 +497,7 @@ local function updatePlayerData()
                 playerData[username].faction = getPlayerFaction(player)
                 playerData[username].safehouse = getPlayerSafehouse(player)
                 playerData[username].isAdmin = isPlayerAdmin(player)
+                playerData[username].isStaff = isPlayerStaff(player)
             end
         end
         return
@@ -460,6 +511,7 @@ local function updatePlayerData()
             playerData[username].faction = getPlayerFaction(player)
             playerData[username].safehouse = getPlayerSafehouse(player)
             playerData[username].isAdmin = isPlayerAdmin(player)
+            playerData[username].isStaff = isPlayerStaff(player)
         end
     end
 end
@@ -568,6 +620,16 @@ function Server.BroadcastTypingIndicator(player, channel, isTyping, target)
     elseif channel == ChatSystem.ChannelType.ADMIN then
         for otherUsername, otherData in pairs(playerData) do
             if otherData.isAdmin and otherUsername ~= username then
+                local otherPlayer = getPlayerByName(otherUsername)
+                if otherPlayer then
+                    chatSocket:to(otherPlayer):emit("typing", data)
+                end
+            end
+        end
+        
+    elseif channel == ChatSystem.ChannelType.STAFF then
+        for otherUsername, otherData in pairs(playerData) do
+            if otherData.isStaff and otherUsername ~= username then
                 local otherPlayer = getPlayerByName(otherUsername)
                 if otherPlayer then
                     chatSocket:to(otherPlayer):emit("typing", data)

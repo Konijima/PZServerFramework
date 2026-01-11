@@ -395,27 +395,75 @@ function Client.GetAvailableChannels()
             table.insert(channels, ChatSystem.ChannelType.SAFEHOUSE)
         end
         
-        -- Check admin (only if admin chat is enabled and player is admin)
+        -- Check admin (only if admin chat is enabled and player has admin power)
         if settings.enableAdminChat then
-            -- In singleplayer, check access level directly
-            local accessLevel = player:getAccessLevel()
-            local isAdmin = accessLevel and accessLevel ~= "None" and accessLevel ~= ""
+            local isAdmin = false
             
-            -- In multiplayer, also check role capabilities
-            if not isAdmin then
+            -- Check role hasAdminPower() in multiplayer
+            if isClient() then
                 local role = player:getRole()
-                if role and Capability and Capability.AdminAccess then
-                    local success, hasAccess = pcall(function()
-                        return role:haveCapability(Capability.AdminAccess)
+                if role then
+                    local success, hasAdmin = pcall(function()
+                        return role:hasAdminPower()
                     end)
-                    if success and hasAccess then
+                    if success and hasAdmin then
                         isAdmin = true
                     end
                 end
             end
             
+            -- Fallback: check access level for "admin"
+            if not isAdmin then
+                local accessLevel = getAccessLevel and getAccessLevel()
+                if accessLevel and string.lower(accessLevel) == "admin" then
+                    isAdmin = true
+                end
+            end
+            
             if isAdmin then
                 table.insert(channels, ChatSystem.ChannelType.ADMIN)
+            end
+        end
+        
+        -- Check staff (only if staff chat is enabled and player is admin, mod, or GM)
+        if settings.enableStaffChat then
+            local isStaff = false
+            
+            -- Check role capabilities in multiplayer (SeePlayersConnected or AnswerTickets = staff)
+            if isClient() then
+                local role = player:getRole()
+                if role and Capability then
+                    -- Admin power means staff
+                    local success, hasAdmin = pcall(function()
+                        return role:hasAdminPower()
+                    end)
+                    if success and hasAdmin then
+                        isStaff = true
+                    end
+                    
+                    -- Staff capabilities
+                    if not isStaff then
+                        local success2, hasStaffCap = pcall(function()
+                            return role:hasCapability(Capability.SeePlayersConnected) or
+                                   role:hasCapability(Capability.AnswerTickets)
+                        end)
+                        if success2 and hasStaffCap then
+                            isStaff = true
+                        end
+                    end
+                end
+            end
+            
+            -- Fallback: any non-none access level = staff
+            if not isStaff then
+                local accessLevel = getAccessLevel and getAccessLevel()
+                if accessLevel and accessLevel ~= "" and string.lower(accessLevel) ~= "none" then
+                    isStaff = true
+                end
+            end
+            
+            if isStaff then
+                table.insert(channels, ChatSystem.ChannelType.STAFF)
             end
         end
     end

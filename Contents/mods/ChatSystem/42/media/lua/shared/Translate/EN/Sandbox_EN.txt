@@ -30,8 +30,11 @@ Sandbox_EN = {
     Sandbox_ChatSystem_EnableSafehouseChat = "Enable Safehouse Chat",
     Sandbox_ChatSystem_EnableSafehouseChat_tooltip = "Allow players to use safehouse chat to communicate with safehouse members.",
     
+    Sandbox_ChatSystem_EnableStaffChat = "Enable Staff Chat",
+    Sandbox_ChatSystem_EnableStaffChat_tooltip = "Allow staff members (admin, moderator, GM) to use a private staff chat channel. Uses B42 capability system.",
+    
     Sandbox_ChatSystem_EnableAdminChat = "Enable Admin Chat",
-    Sandbox_ChatSystem_EnableAdminChat_tooltip = "Allow admins to use a private admin-only chat channel.",
+    Sandbox_ChatSystem_EnableAdminChat_tooltip = "Allow admins (hasAdminPower) to use a private admin-only chat channel.",
     
     Sandbox_ChatSystem_EnablePrivateMessages = "Enable Private Messages",
     Sandbox_ChatSystem_EnablePrivateMessages_tooltip = "Allow players to send private messages to each other.",
