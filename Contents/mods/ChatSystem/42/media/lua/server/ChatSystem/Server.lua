@@ -364,11 +364,21 @@ chatSocket:onServer("message", function(player, data, context, ack)
     -- Get display name (character name if roleplay mode, username otherwise)
     local displayName = getPlayerDisplayName(player)
     
+    -- Handle yelling - convert to uppercase and set red color
+    if metadata.isYell then
+        text = string.upper(text)
+    end
+    
     -- Create the message
     local message = ChatSystem.CreateMessage(channel, displayName, text, metadata)
     
     -- Store original username in metadata for lookups (PMs, etc.)
     message.metadata.originalUsername = username
+    
+    -- Set red color for yelling
+    if metadata.isYell then
+        message.color = { r = 1, g = 0.3, b = 0.3 } -- Red for yells
+    end
     
     -- Determine recipients based on channel
     if channel == ChatSystem.ChannelType.LOCAL then

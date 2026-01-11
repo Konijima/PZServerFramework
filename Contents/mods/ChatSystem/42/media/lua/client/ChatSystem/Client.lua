@@ -200,8 +200,14 @@ function Client.OnMessageReceived(message)
     if message.channel == ChatSystem.ChannelType.LOCAL and not message.isSystem then
         local player = getPlayer()
         if player and message.author == player:getUsername() then
-            -- Show text above the player's head using the built-in Say method
-            player:Say(message.text)
+            -- Show text above the player's head
+            if message.metadata and message.metadata.isYell then
+                -- Use Yell for red overhead text
+                player:Yell(message.text)
+            else
+                -- Use Say for normal overhead text
+                player:Say(message.text)
+            end
         end
     end
 end
