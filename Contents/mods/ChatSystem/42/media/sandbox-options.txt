@@ -97,3 +97,11 @@ option ChatSystem.ChatSlowMode
     page = ChatSystem,
     translation = ChatSystem_ChatSlowMode,
 }
+
+option ChatSystem.RoleplayMode
+{
+    type = boolean,
+    default = false,
+    page = ChatSystem,
+    translation = ChatSystem_RoleplayMode,
+}

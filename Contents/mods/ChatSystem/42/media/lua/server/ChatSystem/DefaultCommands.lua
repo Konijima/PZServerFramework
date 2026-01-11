@@ -10,6 +10,32 @@ require "ChatSystem/CommandServer"
 local Commands = ChatSystem.Commands
 local Server = Commands.Server
 
+--- Get the display name for a player based on roleplay mode setting
+---@param player IsoPlayer
+---@return string The display name (character name if roleplay mode, username otherwise)
+local function getPlayerDisplayName(player)
+    if not player then return "Unknown" end
+    
+    -- If roleplay mode is enabled, use character name
+    if ChatSystem.Settings.roleplayMode then
+        local descriptor = player:getDescriptor()
+        if descriptor then
+            local forename = descriptor:getForename() or ""
+            local surname = descriptor:getSurname() or ""
+            local fullName = forename
+            if surname ~= "" then
+                fullName = fullName .. " " .. surname
+            end
+            if fullName ~= "" then
+                return fullName
+            end
+        end
+    end
+    
+    -- Default to username
+    return player:getUsername() or "Unknown"
+end
+
 -- ==========================================================
 -- General Commands (All Players)
 -- ==========================================================
@@ -32,7 +58,7 @@ Commands.Register({
             -- Show help for specific command
             local cmd = Commands.Get(cmdName)
             if not cmd then
-                Server.ReplyError(context.player, "Unknown command: /" .. cmdName)
+                Server.ReplyError(context.player, "Unknown command: /" .. cmdName, context.channel)
                 return
             end
             
@@ -40,7 +66,7 @@ Commands.Register({
             if cmd.aliases and #cmd.aliases > 0 then
                 help = help .. " (Aliases: /" .. table.concat(cmd.aliases, ", /") .. ")"
             end
-            Server.Reply(context.player, help)
+            Server.Reply(context.player, help, nil, context.channel)
         else
             -- Show all commands
             local categories = Commands.GetCategories()
@@ -62,8 +88,8 @@ Commands.Register({
                 end
             end
             
-            output = output .. "\n\nUse /help <command> for more info"
-            Server.Reply(context.player, output)
+            output = output .. "\n\nUse /help \<command\> <SPACE> for more info"
+            Server.Reply(context.player, output, nil, context.channel)
         end
     end
 })
@@ -80,7 +106,7 @@ Commands.Register({
         
         if not onlinePlayers or onlinePlayers:size() == 0 then
             -- SP mode
-            Server.Reply(context.player, "Online: " .. context.username .. " (you)")
+            Server.Reply(context.player, "Online: " .. context.username .. " (you)", nil, context.channel)
             return
         end
         
@@ -122,7 +148,7 @@ Commands.Register({
             end
         end
         
-        Server.Reply(context.player, output)
+        Server.Reply(context.player, output, nil, context.channel)
     end
 })
 
@@ -164,7 +190,8 @@ Commands.Register({
             table.insert(rolls, roll)
         end
         
-        local result = context.username .. " rolled " .. count .. "d" .. sides .. ": "
+        local displayName = getPlayerDisplayName(context.player)
+        local result = displayName .. " rolled " .. count .. "d" .. sides .. ": "
         if count > 1 then
             result = result .. "[" .. table.concat(rolls, ", ") .. "] = " .. total
         else
@@ -190,14 +217,15 @@ Commands.Register({
     handler = function(context)
         local action = context.rawArgs
         if not action or action == "" then
-            Server.ReplyError(context.player, "Usage: /me <action>")
+            Server.ReplyError(context.player, "Usage: /me <action>", context.channel)
             return
         end
         
+        local displayName = getPlayerDisplayName(context.player)
         local msg = ChatSystem.CreateMessage(
             ChatSystem.ChannelType.LOCAL,
-            context.username,
-            "* " .. context.username .. " " .. action .. " *"
+            displayName,
+            "* " .. displayName .. " " .. action .. " *"
         )
         msg.metadata.isEmote = true
         msg.color = { r = 1, g = 0.8, b = 0.5 } -- Orange for emotes
@@ -248,7 +276,7 @@ Commands.Register({
     handler = function(context)
         local target, err = Server.FindPlayer(context.argList[1])
         if not target then
-            Server.ReplyError(context.player, err)
+            Server.ReplyError(context.player, err, context.channel)
             return
         end
         
@@ -257,14 +285,14 @@ Commands.Register({
         
         -- Can't kick yourself
         if targetName == context.username then
-            Server.ReplyError(context.player, "You can't kick yourself")
+            Server.ReplyError(context.player, "You can't kick yourself", context.channel)
             return
         end
         
         -- Can't kick higher ranked staff
         local targetAccess = Server.GetPlayerAccessLevel(target)
         if Server.HasAccess(target, context.accessLevel) and targetAccess ~= Commands.AccessLevel.PLAYER then
-            Server.ReplyError(context.player, "You can't kick staff members")
+            Server.ReplyError(context.player, "You can't kick staff members", context.channel)
             return
         end
         
@@ -290,7 +318,7 @@ Commands.Register({
     handler = function(context)
         local message = context.rawArgs
         if not message or message == "" then
-            Server.ReplyError(context.player, "Usage: /announce <message>")
+            Server.ReplyError(context.player, "Usage: /announce <message>", context.channel)
             return
         end
         
@@ -328,7 +356,7 @@ Commands.Register({
                 context.player:setX(x)
                 context.player:setY(y)
                 context.player:setZ(z)
-                Server.ReplySuccess(context.player, "Teleported to " .. x .. ", " .. y .. ", " .. z)
+                Server.ReplySuccess(context.player, "Teleported to " .. x .. ", " .. y .. ", " .. z, context.channel)
                 return
             end
         end
@@ -336,7 +364,7 @@ Commands.Register({
         -- Try player name
         local target, err = Server.FindPlayer(targetStr)
         if not target then
-            Server.ReplyError(context.player, err)
+            Server.ReplyError(context.player, err, context.channel)
             return
         end
         
@@ -344,7 +372,7 @@ Commands.Register({
         context.player:setY(target:getY())
         context.player:setZ(target:getZ())
         
-        Server.ReplySuccess(context.player, "Teleported to " .. target:getUsername())
+        Server.ReplySuccess(context.player, "Teleported to " .. target:getUsername(), context.channel)
     end
 })
 
@@ -362,14 +390,14 @@ Commands.Register({
     handler = function(context)
         local target, err = Server.FindPlayer(context.args.player)
         if not target then
-            Server.ReplyError(context.player, err)
+            Server.ReplyError(context.player, err, context.channel)
             return
         end
         
         local targetName = target:getUsername()
         
         if targetName == context.username then
-            Server.ReplyError(context.player, "You can't teleport yourself to yourself")
+            Server.ReplyError(context.player, "You can't teleport yourself to yourself", context.channel)
             return
         end
         
@@ -377,8 +405,8 @@ Commands.Register({
         target:setY(context.player:getY())
         target:setZ(context.player:getZ())
         
-        Server.ReplySuccess(context.player, "Teleported " .. targetName .. " to you")
-        Server.Reply(target, "You have been teleported to " .. context.username)
+        Server.ReplySuccess(context.player, "Teleported " .. targetName .. " to you", context.channel)
+        Server.Reply(target, "You have been teleported to " .. context.username, nil, context.channel)
     end
 })
 
@@ -394,7 +422,7 @@ Commands.Register({
         local isGod = player:isGodMod()
         player:setGodMod(not isGod)
         
-        Server.ReplySuccess(context.player, "God mode: " .. (not isGod and "ENABLED" or "DISABLED"))
+        Server.ReplySuccess(context.player, "God mode: " .. (not isGod and "ENABLED" or "DISABLED"), context.channel)
     end
 })
 
@@ -410,7 +438,7 @@ Commands.Register({
         local isInvis = player:isInvisible()
         player:setInvisible(not isInvis)
         
-        Server.ReplySuccess(context.player, "Invisibility: " .. (not isInvis and "ENABLED" or "DISABLED"))
+        Server.ReplySuccess(context.player, "Invisibility: " .. (not isInvis and "ENABLED" or "DISABLED"), context.channel)
     end
 })
 
@@ -432,7 +460,7 @@ Commands.Register({
     handler = function(context)
         local message = context.rawArgs
         if not message or message == "" then
-            Server.ReplyError(context.player, "Usage: /servermsg <message>")
+            Server.ReplyError(context.player, "Usage: /servermsg <message>", context.channel)
             return
         end
         
@@ -441,19 +469,22 @@ Commands.Register({
 })
 
 -- Save command (MP only)
+-- Note: Full world save is not exposed to Lua API. Use RCON or server console instead.
 Commands.Register({
     name = "save",
     aliases = { "saveworld" },
-    description = "Save the world (multiplayer only)",
+    description = "Trigger ModData save (full world save requires RCON/console)",
     accessLevel = Commands.AccessLevel.OWNER,
     category = "server",
     handler = function(context)
         if isServer() then
-            getWorld():save()
-            Server.ReplySuccess(context.player, "World saved")
-            print("[ChatSystem.Commands] World saved by " .. context.username)
+            -- Full world save is not available via Lua API
+            -- We can only trigger ModData saves for mods
+            ModData.save()
+            Server.ReplySuccess(context.player, "ModData saved. For full world save, use RCON command 'save' or server console.", context.channel)
+            print("[ChatSystem.Commands] ModData saved by " .. context.username)
         else
-            Server.ReplyError(context.player, "This command is only available on multiplayer servers")
+            Server.ReplyError(context.player, "This command is only available on multiplayer servers", context.channel)
         end
     end
 })

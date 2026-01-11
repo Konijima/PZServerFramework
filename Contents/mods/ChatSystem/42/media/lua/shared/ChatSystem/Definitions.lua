@@ -116,6 +116,9 @@ ChatSystem.Settings = {
     
     -- Moderation
     chatSlowMode = 0, -- seconds between messages (0 = disabled)
+    
+    -- Roleplay
+    roleplayMode = false, -- Use character firstname lastname instead of username
 }
 
 -- Cache of last loaded sandbox values for change detection
@@ -178,6 +181,9 @@ function ChatSystem.LoadSandboxSettings(silent)
     
     -- Moderation
     if sv.ChatSlowMode then ChatSystem.Settings.chatSlowMode = sv.ChatSlowMode end
+    
+    -- Roleplay
+    if sv.RoleplayMode ~= nil then ChatSystem.Settings.roleplayMode = sv.RoleplayMode end
     
     -- Check if settings changed
     local changed = not valuesEqual(prevSettings, ChatSystem.Settings)

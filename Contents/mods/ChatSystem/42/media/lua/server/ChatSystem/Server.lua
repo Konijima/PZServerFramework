@@ -25,6 +25,32 @@ local playerData = {} -- { [username] = { faction, safehouse, isAdmin } }
 -- Helper Functions
 -- ==========================================================
 
+--- Get the display name for a player based on roleplay mode setting
+---@param player IsoPlayer
+---@return string The display name (character name if roleplay mode, username otherwise)
+local function getPlayerDisplayName(player)
+    if not player then return "Unknown" end
+    
+    -- If roleplay mode is enabled, use character name
+    if ChatSystem.Settings.roleplayMode then
+        local descriptor = player:getDescriptor()
+        if descriptor then
+            local forename = descriptor:getForename() or ""
+            local surname = descriptor:getSurname() or ""
+            local fullName = forename
+            if surname ~= "" then
+                fullName = fullName .. " " .. surname
+            end
+            if fullName ~= "" then
+                return fullName
+            end
+        end
+    end
+    
+    -- Default to username
+    return player:getUsername() or "Unknown"
+end
+
 --- Get a player by username (works in both SP and MP)
 ---@param username string
 ---@return IsoPlayer|nil
@@ -330,8 +356,14 @@ chatSocket:onServer("message", function(player, data, context, ack)
         end
     end
     
+    -- Get display name (character name if roleplay mode, username otherwise)
+    local displayName = getPlayerDisplayName(player)
+    
     -- Create the message
-    local message = ChatSystem.CreateMessage(channel, username, text, metadata)
+    local message = ChatSystem.CreateMessage(channel, displayName, text, metadata)
+    
+    -- Store original username in metadata for lookups (PMs, etc.)
+    message.metadata.originalUsername = username
     
     -- Determine recipients based on channel
     if channel == ChatSystem.ChannelType.LOCAL then

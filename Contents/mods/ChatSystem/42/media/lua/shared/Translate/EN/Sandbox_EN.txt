@@ -42,4 +42,8 @@ Sandbox_EN = {
     -- Moderation Settings
     Sandbox_ChatSystem_ChatSlowMode = "Chat Slow Mode (seconds)",
     Sandbox_ChatSystem_ChatSlowMode_tooltip = "Time in seconds players must wait between messages. Set to 0 to disable.",
+    
+    -- Roleplay Settings
+    Sandbox_ChatSystem_RoleplayMode = "Roleplay Mode",
+    Sandbox_ChatSystem_RoleplayMode_tooltip = "Display character's first and last name in chat instead of username. Great for roleplay servers.",
 }
