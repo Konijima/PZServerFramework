@@ -509,9 +509,68 @@ end
 -- Initialization
 -- ==========================================================
 
+--- Hook into vanilla chat messages (yells, server messages, etc.)
+--- This captures messages that bypass our custom chat system
+local function OnVanillaMessage(message, tabID)
+    local author = message:getAuthor()
+    local text = message:getText()
+    
+    if not text or text == "" then return end
+    
+    -- Determine channel based on message source
+    local channel = ChatSystem.ChannelType.LOCAL
+    local isSystem = false
+    local color = nil
+    
+    if author == "Server" then
+        -- Server system messages (sandbox changes, etc.)
+        channel = ChatSystem.ChannelType.GLOBAL
+        isSystem = true
+        color = { r = 1, g = 0.9, b = 0.5 } -- Yellow-ish
+    else
+        -- Player messages (yells, says, etc.) - these are local chat
+        channel = ChatSystem.ChannelType.LOCAL
+        
+        -- Check if this is a yell (usually in uppercase or has specific formatting)
+        local textWithPrefix = message:getTextWithPrefix()
+        if textWithPrefix and textWithPrefix:find("%[Yell%]") then
+            color = { r = 1, g = 0.3, b = 0.3 } -- Red for yells
+        end
+    end
+    
+    -- Create message for our custom chat
+    local msg
+    if isSystem then
+        msg = ChatSystem.CreateSystemMessage(text, channel)
+    else
+        msg = ChatSystem.CreateMessage(channel, author or "Unknown", text)
+    end
+    
+    if color then
+        msg.color = color
+    end
+    msg.metadata.isVanilla = true
+    
+    -- Add to message history
+    table.insert(Client.messages, msg)
+    
+    -- Trim old messages
+    while #Client.messages > ChatSystem.Settings.maxMessagesStored do
+        table.remove(Client.messages, 1)
+    end
+    
+    -- Trigger event for UI update
+    ChatSystem.Events.OnMessageReceived:Trigger(msg)
+    
+    print("[ChatSystem] Client: Captured vanilla message from " .. tostring(author) .. ": " .. text)
+end
+
 local function OnGameStart()
     if isClient() or not isServer() then
         Client.Connect()
+        
+        -- Hook vanilla chat messages to capture yells, server announcements, etc.
+        Events.OnAddMessage.Add(OnVanillaMessage)
     end
 end
 
