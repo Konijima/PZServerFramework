@@ -5,6 +5,10 @@
 if isServer() then return end
 if not isClient() then return end
 
+require "ChatSystem/Definitions"
+
+-- Ensure Client exists (will be populated by Client.lua)
+ChatSystem.Client = ChatSystem.Client or {}
 local Client = ChatSystem.Client
 
 -- ==========================================================

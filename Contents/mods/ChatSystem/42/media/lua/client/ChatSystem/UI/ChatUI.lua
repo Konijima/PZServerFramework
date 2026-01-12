@@ -920,8 +920,10 @@ function ISCustomChat:unfocus()
     -- Don't hide textEntry, just make it non-editable
     self.historyIndex = 0
     
-    -- Stop typing indicator
-    ChatSystem.Client.StopTyping()
+    -- Stop typing indicator (guard for early calls before Client is fully loaded)
+    if ChatSystem.Client and ChatSystem.Client.StopTyping then
+        ChatSystem.Client.StopTyping()
+    end
     
     -- Set timer to re-enable key presses (same approach as vanilla ISChat)
     self.timerTextEntry = 20
