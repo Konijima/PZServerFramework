@@ -6,6 +6,14 @@ require "ChatSystem/Definitions"
 require "ChatSystem/CommandAPI"
 
 ChatSystem.Commands.Server = {}
+
+-- Load command files
+require "ChatSystem/Commands/GeneralCommands"
+require "ChatSystem/Commands/AdminCommands"
+require "ChatSystem/Commands/ServerCommands"
+
+print("[ChatSystem] All commands loaded")
+
 local Server = ChatSystem.Commands.Server
 local Commands = ChatSystem.Commands
 local Socket = KoniLib.Socket
