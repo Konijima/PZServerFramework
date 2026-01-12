@@ -1,12 +1,10 @@
 -- ChatSystem Typing Indicators Module
 -- Handles typing indicator display, cleanup, and network communication
--- Loaded by Client.lua
+-- Returns a module table to be merged into ChatSystem.Client
 
 require "ChatSystem/Definitions"
 
--- Ensure Client exists (will be populated by Client.lua)
-ChatSystem.Client = ChatSystem.Client or {}
-local Client = ChatSystem.Client
+local Module = {}
 
 -- ==========================================================
 -- Configuration
@@ -25,7 +23,8 @@ local TYPING_CLEANUP_INTERVAL = 60  -- Every 60 ticks (~1 second at 60 TPS)
 
 --- Handle received typing indicator
 ---@param data table { username, channel, isTyping, target }
-function Client.OnTypingReceived(data)
+function Module.OnTypingReceived(data)
+    local Client = ChatSystem.Client
     local channel = data.channel or ChatSystem.ChannelType.LOCAL
     local username = data.username
     local isTyping = data.isTyping
@@ -50,13 +49,14 @@ function Client.OnTypingReceived(data)
     
     -- Trigger event for UI update
     -- For PM, pass the username who is typing so UI can update the right conversation
-    ChatSystem.Events.OnTypingChanged:Trigger(channel, Client.GetTypingUsers(trackingKey), username)
+    ChatSystem.Events.OnTypingChanged:Trigger(channel, Module.GetTypingUsers(trackingKey), username)
 end
 
 --- Get list of users typing in a channel
 ---@param channel string
 ---@return table Array of usernames
-function Client.GetTypingUsers(channel)
+function Module.GetTypingUsers(channel)
+    local Client = ChatSystem.Client
     local users = {}
     if Client.typingPlayers[channel] then
         for username, _ in pairs(Client.typingPlayers[channel]) do
@@ -68,21 +68,23 @@ end
 
 --- Clear typing indicator for a specific player (used when player dies/quits/goes out of range)
 ---@param username string
-function Client.ClearTypingIndicator(username)
+function Module.ClearTypingIndicator(username)
+    local Client = ChatSystem.Client
     if not username then return end
     
     for channel, players in pairs(Client.typingPlayers) do
         if players[username] then
             players[username] = nil
             -- Trigger UI update for this channel
-            ChatSystem.Events.OnTypingChanged:Trigger(channel, Client.GetTypingUsers(channel), username)
+            ChatSystem.Events.OnTypingChanged:Trigger(channel, Module.GetTypingUsers(channel), username)
         end
     end
 end
 
 --- Cleanup stale typing indicators (called periodically)
 --- Removes typing indicators that haven't been refreshed within the timeout
-function Client.CleanupTypingIndicators()
+function Module.CleanupTypingIndicators()
+    local Client = ChatSystem.Client
     local now = getTimestampMs()
     
     for channel, players in pairs(Client.typingPlayers) do
@@ -91,7 +93,7 @@ function Client.CleanupTypingIndicators()
             if type(timestamp) == "number" then
                 if now - timestamp > TYPING_INDICATOR_TIMEOUT then
                     players[username] = nil
-                    ChatSystem.Events.OnTypingChanged:Trigger(channel, Client.GetTypingUsers(channel), username)
+                    ChatSystem.Events.OnTypingChanged:Trigger(channel, Module.GetTypingUsers(channel), username)
                 end
             elseif timestamp == true then
                 -- Legacy format (boolean) - can't timeout, but will be cleaned up by quit/death events
@@ -103,7 +105,8 @@ end
 --- Send typing start indicator
 ---@param channel string
 ---@param target string|nil Optional target for PM typing
-function Client.StartTyping(channel, target)
+function Module.StartTyping(channel, target)
+    local Client = ChatSystem.Client
     if not Client.isConnected then return end
     
     local now = getTimestampMs()
@@ -120,7 +123,8 @@ function Client.StartTyping(channel, target)
 end
 
 --- Send typing stop indicator
-function Client.StopTyping()
+function Module.StopTyping()
+    local Client = ChatSystem.Client
     if not Client.isConnected then return end
     
     if Client.isTyping and Client.typingChannel then
@@ -132,21 +136,21 @@ function Client.StopTyping()
 end
 
 -- ==========================================================
--- Periodic Cleanup
+-- Initialization
 -- ==========================================================
 
-local function OnTick()
-    typingCleanupTickCounter = typingCleanupTickCounter + 1
-    if typingCleanupTickCounter >= TYPING_CLEANUP_INTERVAL then
-        typingCleanupTickCounter = 0
-        Client.CleanupTypingIndicators()
-    end
-end
-
 --- Initialize typing indicators module
-function Client.InitTypingIndicators()
-    Events.OnTick.Add(OnTick)
+function Module.Init()
+    Events.OnTick.Add(function()
+        typingCleanupTickCounter = typingCleanupTickCounter + 1
+        if typingCleanupTickCounter >= TYPING_CLEANUP_INTERVAL then
+            typingCleanupTickCounter = 0
+            Module.CleanupTypingIndicators()
+        end
+    end)
     print("[ChatSystem] TypingIndicators module initialized")
 end
 
 print("[ChatSystem] TypingIndicators module loaded")
+
+return Module

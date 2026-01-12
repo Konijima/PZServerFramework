@@ -1,12 +1,10 @@
 -- ChatSystem Vanilla Message Hook
 -- Captures vanilla chat messages (yells, server announcements) for our custom chat
--- Loaded by Client.lua
+-- Returns a module table to be merged into ChatSystem.Client
 
 require "ChatSystem/Definitions"
 
--- Ensure Client exists (will be populated by Client.lua)
-ChatSystem.Client = ChatSystem.Client or {}
-local Client = ChatSystem.Client
+local Module = {}
 
 -- ==========================================================
 -- Vanilla Message Filtering
@@ -37,6 +35,7 @@ end
 --- Hook into vanilla chat messages (yells, server messages, etc.)
 --- This captures messages that bypass our custom chat system
 local function OnVanillaMessage(message, tabID)
+    local Client = ChatSystem.Client
     local author = message:getAuthor()
     local text = message:getText()
     local textWithPrefix = message:getTextWithPrefix()
@@ -121,9 +120,11 @@ end
 -- ==========================================================
 
 --- Initialize vanilla message hook
-function Client.InitVanillaHook()
+function Module.Init()
     Events.OnAddMessage.Add(OnVanillaMessage)
     print("[ChatSystem] VanillaHook module initialized")
 end
 
 print("[ChatSystem] VanillaHook module loaded")
+
+return Module

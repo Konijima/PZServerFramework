@@ -1203,6 +1203,29 @@ function ISCustomChat:onResize()
     self:createTabs()
 end
 
+--- Handle screen resolution changes to keep chat window visible
+---@param oldw number Old screen width
+---@param oldh number Old screen height
+---@param neww number New screen width
+---@param newh number New screen height
+function ISCustomChat:onResolutionChange(oldw, oldh, neww, newh)
+    if not self:isVisible() then return end
+    
+    local x = self:getX()
+    local y = self:getY()
+    
+    -- Calculate position as percentage of old screen and apply to new size
+    local newX = neww * (x / oldw)
+    local newY = newh * (y / oldh)
+    
+    -- Set new position first, then use ensureOnScreen to clamp bounds
+    self:setX(newX)
+    self:setY(newY)
+    
+    print("[ChatSystem] Resolution changed from " .. oldw .. "x" .. oldh .. " to " .. neww .. "x" .. newh)
+    self:ensureOnScreen()
+end
+
 -- ==========================================================
 -- Lock/Unlock
 -- ==========================================================
@@ -1299,6 +1322,54 @@ function ISCustomChat:RestoreLayout(name, layout)
     if layout.chatFont then
         self:setFontSize(layout.chatFont)
     end
+    
+    -- Ensure window is within screen bounds after layout restore
+    self:ensureOnScreen()
+end
+
+--- Ensure the chat window is within screen bounds
+function ISCustomChat:ensureOnScreen()
+    local screenW = getCore():getScreenWidth()
+    local screenH = getCore():getScreenHeight()
+    
+    local x = self:getX()
+    local y = self:getY()
+    local w = self:getWidth()
+    local h = self:getHeight()
+    local adjusted = false
+    
+    -- Clamp width and height to screen size
+    if w > screenW - 20 then
+        w = screenW - 20
+        adjusted = true
+    end
+    if h > screenH - 20 then
+        h = screenH - 20
+        adjusted = true
+    end
+    
+    -- Ensure minimum size
+    w = math.max(w, self.minimumWidth or 300)
+    h = math.max(h, self.minimumHeight or 180)
+    
+    -- Clamp position to keep window on screen
+    -- At least 50 pixels must be visible
+    local minVisible = 50
+    local newX = math.max(-w + minVisible, math.min(x, screenW - minVisible))
+    local newY = math.max(0, math.min(y, screenH - minVisible))
+    
+    if newX ~= x or newY ~= y then
+        adjusted = true
+    end
+    
+    if adjusted then
+        self:setX(newX)
+        self:setY(newY)
+        self:setWidth(w)
+        self:setHeight(h)
+        self:onResize()
+        print("[ChatSystem] Chat window adjusted to fit screen bounds: " .. math.floor(newX) .. "," .. math.floor(newY) .. " (" .. math.floor(w) .. "x" .. math.floor(h) .. ")")
+    end
 end
 
 -- ==========================================================
@@ -1354,6 +1425,13 @@ function ISCustomChat.OnPlayerDeath(player)
     end
 end
 
+-- Handle screen resolution change
+function ISCustomChat.OnResolutionChange(oldw, oldh, neww, newh)
+    if ISCustomChat.instance then
+        ISCustomChat.instance:onResolutionChange(oldw, oldh, neww, newh)
+    end
+end
+
 -- Create custom chat
 function ISCustomChat.CreateChat()
     if not isClient() and isServer() then return end
@@ -1394,6 +1472,7 @@ function ISCustomChat.CreateChat()
     Events.OnMouseDown.Add(ISCustomChat.OnMouseDown)
     Events.OnTick.Add(ISCustomChat.OnTick)
     Events.OnPlayerDeath.Add(ISCustomChat.OnPlayerDeath)
+    Events.OnResolutionChange.Add(ISCustomChat.OnResolutionChange)
     
     print("[ChatSystem] Custom Chat UI Created")
 end

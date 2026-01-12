@@ -8,14 +8,20 @@ end
 require "ChatSystem/Definitions"
 local Socket = require("KoniLib/Socket")
 
+-- Load sub-modules (they return tables with functions)
+local TypingIndicators = require("ChatSystem/ClientTypingIndicators")
+local VanillaHook = require("ChatSystem/ClientVanillaHook")
+local Conversations = require("ChatSystem/ClientConversations")
+local ChannelManager = require("ChatSystem/ClientChannelManager")
+
 ChatSystem.Client = {}
 local Client = ChatSystem.Client
 
--- Load sub-modules (they add functions to Client)
-require "ChatSystem/SubModules/TypingIndicators"
-require "ChatSystem/SubModules/VanillaHook"
-require "ChatSystem/SubModules/Conversations"
-require "ChatSystem/SubModules/ChannelManager"
+-- Merge sub-module functions into Client
+for k, v in pairs(TypingIndicators) do Client[k] = v end
+for k, v in pairs(VanillaHook) do Client[k] = v end
+for k, v in pairs(Conversations) do Client[k] = v end
+for k, v in pairs(ChannelManager) do Client[k] = v end
 
 -- Client state
 Client.socket = nil
@@ -342,9 +348,9 @@ local function OnGameStart()
     Client.Connect()
     
     -- Initialize sub-modules
-    Client.InitTypingIndicators()
-    Client.InitVanillaHook()
-    Client.InitChannelManager()
+    TypingIndicators.Init()
+    VanillaHook.Init()
+    ChannelManager.Init()
     
     -- Register for KoniLib remote player events (deferred to ensure KoniLib is loaded)
     if KoniLib and KoniLib.Events then

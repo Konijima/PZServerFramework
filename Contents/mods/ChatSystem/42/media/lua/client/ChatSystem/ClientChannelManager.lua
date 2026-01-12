@@ -1,12 +1,10 @@
 -- ChatSystem Channel Manager Module
 -- Handles channel availability, selection, and membership tracking
--- Loaded by Client.lua
+-- Returns a module table to be merged into ChatSystem.Client
 
 require "ChatSystem/Definitions"
 
--- Ensure Client exists (will be populated by Client.lua)
-ChatSystem.Client = ChatSystem.Client or {}
-local Client = ChatSystem.Client
+local Module = {}
 
 -- ==========================================================
 -- Channel Availability
@@ -15,8 +13,8 @@ local Client = ChatSystem.Client
 --- Check if a channel is currently available
 ---@param channel string
 ---@return boolean
-function Client.IsChannelAvailable(channel)
-    local available = Client.GetAvailableChannels()
+function Module.IsChannelAvailable(channel)
+    local available = Module.GetAvailableChannels()
     for _, ch in ipairs(available) do
         if ch == channel then
             return true
@@ -27,9 +25,10 @@ end
 
 --- Set the current default channel
 ---@param channel string
-function Client.SetChannel(channel)
+function Module.SetChannel(channel)
+    local Client = ChatSystem.Client
     -- Only allow setting to available channels
-    if ChatSystem.ChannelColors[channel] and Client.IsChannelAvailable(channel) then
+    if ChatSystem.ChannelColors[channel] and Module.IsChannelAvailable(channel) then
         Client.currentChannel = channel
         ChatSystem.Events.OnChannelChanged:Trigger(channel)
     end
@@ -37,7 +36,7 @@ end
 
 --- Get available channels for the current player
 ---@return table Array of channel types
-function Client.GetAvailableChannels()
+function Module.GetAvailableChannels()
     local channels = {}
     local settings = ChatSystem.Settings
     
@@ -131,7 +130,7 @@ end
 --- Get the command prefix for a channel
 ---@param channel string
 ---@return string
-function Client.GetChannelCommand(channel)
+function Module.GetChannelCommand(channel)
     local commands = ChatSystem.ChannelCommands[channel]
     if commands and commands[1] then
         return commands[1]
@@ -147,12 +146,13 @@ end
 ---@param newLevel string|nil
 ---@param oldLevel string|nil
 local function OnAccessLevelChanged(newLevel, oldLevel)
-    Client.RefreshAvailableChannels()
+    Module.RefreshAvailableChannels()
 end
 
 --- Refresh available channels and update UI if changed
-function Client.RefreshAvailableChannels()
-    local currentChannels = Client.GetAvailableChannels()
+function Module.RefreshAvailableChannels()
+    local Client = ChatSystem.Client
+    local currentChannels = Module.GetAvailableChannels()
     local channelsChanged = false
     
     if Client.lastAvailableChannels then
@@ -187,13 +187,13 @@ end
 ---@param factionName string The name of the faction that was synced
 local function OnSyncFaction(factionName)
     -- Check if this affects our player
-    Client.CheckFactionSafehouseChanges()
+    Module.CheckFactionSafehouseChanges()
 end
 
 --- Handle safehouse changes event
 local function OnSafehousesChanged()
     -- Check if this affects our player
-    Client.CheckFactionSafehouseChanges()
+    Module.CheckFactionSafehouseChanges()
 end
 
 --- Handle accepted faction invite
@@ -202,7 +202,7 @@ local function OnAcceptedFactionInvite(factionName, playerName)
     local player = getPlayer()
     if player and player:getUsername() == playerName then
         print("[ChatSystem] Client: Accepted faction invite to " .. tostring(factionName))
-        Client.CheckFactionSafehouseChanges()
+        Module.CheckFactionSafehouseChanges()
     end
 end
 
@@ -212,13 +212,14 @@ local function OnAcceptedSafehouseInvite(safehouse, playerName)
     local player = getPlayer()
     if player and player:getUsername() == playerName then
         print("[ChatSystem] Client: Accepted safehouse invite")
-        Client.CheckFactionSafehouseChanges()
+        Module.CheckFactionSafehouseChanges()
     end
 end
 
 --- Check for faction/safehouse membership changes
 --- Updates tracking state and refreshes channels if changed
-function Client.CheckFactionSafehouseChanges()
+function Module.CheckFactionSafehouseChanges()
+    local Client = ChatSystem.Client
     local player = getPlayer()
     if not player then return end
     
@@ -268,7 +269,7 @@ function Client.CheckFactionSafehouseChanges()
     
     -- Refresh channels if faction or safehouse changed
     if changed then
-        Client.RefreshAvailableChannels()
+        Module.RefreshAvailableChannels()
     end
 end
 
@@ -277,7 +278,9 @@ end
 -- ==========================================================
 
 --- Initialize channel manager (call from Client OnGameStart)
-function Client.InitChannelManager()
+function Module.Init()
+    local Client = ChatSystem.Client
+    
     -- Register for KoniLib access level changes
     if KoniLib and KoniLib.Events and KoniLib.Events.OnAccessLevelChanged then
         KoniLib.Events.OnAccessLevelChanged:Add(OnAccessLevelChanged)
@@ -285,7 +288,7 @@ function Client.InitChannelManager()
     end
     
     -- Initialize channel tracking
-    Client.lastAvailableChannels = Client.GetAvailableChannels()
+    Client.lastAvailableChannels = Module.GetAvailableChannels()
     
     -- Initialize faction/safehouse tracking
     local player = getPlayer()
@@ -313,3 +316,5 @@ function Client.InitChannelManager()
 end
 
 print("[ChatSystem] ChannelManager module loaded")
+
+return Module

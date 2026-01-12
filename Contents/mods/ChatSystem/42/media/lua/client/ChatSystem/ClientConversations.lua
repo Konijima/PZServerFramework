@@ -1,12 +1,10 @@
 -- ChatSystem Conversations Module
 -- Handles sending messages and private conversations
--- Loaded by Client.lua
+-- Returns a module table to be merged into ChatSystem.Client
 
 require "ChatSystem/Definitions"
 
--- Ensure Client exists (will be populated by Client.lua)
-ChatSystem.Client = ChatSystem.Client or {}
-local Client = ChatSystem.Client
+local Module = {}
 
 -- ==========================================================
 -- Sending Messages
@@ -17,7 +15,8 @@ local Client = ChatSystem.Client
 ---@return string channel
 ---@return string text
 ---@return table metadata
-function Client.ParseInput(inputText)
+function Module.ParseInput(inputText)
+    local Client = ChatSystem.Client
     local channel = Client.currentChannel
     local text = inputText
     local metadata = {}
@@ -40,7 +39,7 @@ end
 ---@param inputText string
 ---@return string|nil channel (nil if no prefix found)
 ---@return string text (remaining text after prefix)
-function Client.DetectChannelPrefix(inputText)
+function Module.DetectChannelPrefix(inputText)
     for channelType, commands in pairs(ChatSystem.ChannelCommands) do
         for _, cmd in ipairs(commands) do
             if luautils.stringStarts(inputText:lower(), cmd:lower()) then
@@ -58,7 +57,8 @@ end
 
 --- Send a message directly using the current channel (no prefix parsing)
 ---@param text string The message text (already cleaned)
-function Client.SendMessageDirect(text)
+function Module.SendMessageDirect(text)
+    local Client = ChatSystem.Client
     if not Client.isConnected then
         print("[ChatSystem] Client: Not connected to chat server")
         return
@@ -120,7 +120,8 @@ end
 
 --- Send a chat message
 ---@param inputText string
-function Client.SendMessage(inputText)
+function Module.SendMessage(inputText)
+    local Client = ChatSystem.Client
     if not Client.isConnected then
         print("[ChatSystem] Client: Not connected to chat server")
         return
@@ -128,7 +129,7 @@ function Client.SendMessage(inputText)
     
     if not inputText or inputText == "" then return end
     
-    local channel, text, metadata = Client.ParseInput(inputText)
+    local channel, text, metadata = Module.ParseInput(inputText)
     
     -- Don't send empty messages
     if not text or text == "" or text == " " then return end
@@ -188,7 +189,8 @@ end
 
 --- Start or open a conversation with a player
 ---@param username string
-function Client.OpenConversation(username)
+function Module.OpenConversation(username)
+    local Client = ChatSystem.Client
     if not username or username == "" then return end
     
     -- Create conversation if it doesn't exist
@@ -206,7 +208,8 @@ end
 
 --- Close a conversation
 ---@param username string
-function Client.CloseConversation(username)
+function Module.CloseConversation(username)
+    local Client = ChatSystem.Client
     if not username then return end
     
     -- If closing the active conversation, switch to local
@@ -223,7 +226,8 @@ end
 --- Get messages for a conversation
 ---@param username string
 ---@return table
-function Client.GetConversationMessages(username)
+function Module.GetConversationMessages(username)
+    local Client = ChatSystem.Client
     if Client.conversations[username] then
         return Client.conversations[username].messages
     end
@@ -232,13 +236,15 @@ end
 
 --- Get all open conversations
 ---@return table { username = { messages, unread } }
-function Client.GetConversations()
-    return Client.conversations
+function Module.GetConversations()
+    return ChatSystem.Client.conversations
 end
 
 --- Deactivate conversation (switch back to normal channel)
-function Client.DeactivateConversation()
-    Client.activeConversation = nil
+function Module.DeactivateConversation()
+    ChatSystem.Client.activeConversation = nil
 end
 
 print("[ChatSystem] Conversations module loaded")
+
+return Module
