@@ -1,7 +1,7 @@
 if isServer() then return end
 if not KoniLib then KoniLib = {} end
+local Log = require("KoniLib/Log")
 local MP = require("KoniLib/MP")
-local Log = KoniLib.Log
 
 -- Events are defined in shared/KoniLib/CustomEvents.lua and registered using KoniLib/Event.lua
 

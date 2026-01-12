@@ -51,7 +51,7 @@ Socket.EVENTS = {
     KICKED = "kicked",
 }
 
-local Log = KoniLib.Log
+local Log = require("KoniLib/Log")
 
 ---Log a message if verbose mode is enabled
 ---@param str string

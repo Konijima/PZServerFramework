@@ -2,7 +2,7 @@ KoniLib = KoniLib or {}
 KoniLib.MP = {}
 
 local MP = KoniLib.MP
-local Log = KoniLib.Log
+local Log = require("KoniLib/Log")
 
 MP.Handlers = {}
 
