@@ -1,5 +1,6 @@
 if isClient() then return end
 if not KoniLib then KoniLib = {} end
+local Log = require("KoniLib/Log")
 local MP = require("KoniLib/MP")
 
 -- Events are defined in shared/KoniLib/CustomEvents.lua and registered using KoniLib/Event.lua
@@ -21,11 +22,11 @@ local function onCreatePlayerServer(playerIndex, player)
         -- First creation in this session (Join)
         initializedPlayers[username] = true
         isRespawn = false
-        MP.Log("Initial player creation detected (Join) for " .. tostring(username))
+        Log.Print("Events", "Initial player creation detected (Join) for " .. tostring(username))
     else
         -- Creating player again in same session -> Respawn
         isRespawn = true
-        MP.Log("Respawn detected for " .. tostring(username))
+        Log.Print("Events", "Respawn detected for " .. tostring(username))
     end
 
     if KoniLib.Events and KoniLib.Events.OnPlayerInit then
@@ -45,7 +46,7 @@ Events.OnCreatePlayer.Add(onCreatePlayerServer)
 local function onPlayerDeath(player)
     if player and instanceof(player, "IsoPlayer") then
         local username = player:getUsername()
-        MP.Log("Player Death detected: " .. tostring(username))
+        Log.Print("Events", "Player Death detected: " .. tostring(username))
         
         -- Broadcast to all clients
         MP.Send(nil, "KoniLib", "PlayerDeath", { 
@@ -95,7 +96,7 @@ local function checkQuitters()
                 triggerEvent("OnPlayerQuit", username)
             end
             
-            MP.Log("Player Quit detected: " .. tostring(username))
+            Log.Print("Events", "Player Quit detected: " .. tostring(username))
             
             -- Broadcast to all clients
             MP.Send(nil, "KoniLib", "PlayerQuit", { username = username })
