@@ -1,7 +1,6 @@
 -- ChatSystem Typing Indicators Module
 -- Handles typing indicator display, cleanup, and network communication
-if isServer() then return end
-if not isClient() then return end
+-- Loaded by Client.lua
 
 require "ChatSystem/Definitions"
 

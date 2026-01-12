@@ -1,7 +1,6 @@
 -- ChatSystem Vanilla Message Hook
 -- Captures vanilla chat messages (yells, server announcements) for our custom chat
-if isServer() then return end
-if not isClient() then return end
+-- Loaded by Client.lua
 
 require "ChatSystem/Definitions"
 

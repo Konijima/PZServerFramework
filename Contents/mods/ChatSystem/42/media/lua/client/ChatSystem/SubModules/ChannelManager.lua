@@ -1,9 +1,6 @@
 -- ChatSystem Channel Manager Module
 -- Handles channel availability, selection, and membership tracking
--- Must be loaded after Client.lua initializes ChatSystem.Client
-
-if isServer() then return end
-if not isClient() then return end
+-- Loaded by Client.lua
 
 require "ChatSystem/Definitions"
 
