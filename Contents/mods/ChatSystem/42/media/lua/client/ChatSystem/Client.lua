@@ -30,6 +30,10 @@ Client.activeConversation = nil  -- Username of active PM conversation (nil = no
 -- Channel tracking (to detect changes in available channels)
 Client.lastAvailableChannels = nil
 
+-- Faction/Safehouse state tracking (to detect joins/leaves)
+Client.lastFactionName = nil
+Client.lastSafehouseId = nil
+
 -- ==========================================================
 -- Socket Connection
 -- ==========================================================
@@ -871,6 +875,62 @@ function Client.RefreshAvailableChannels()
     end
 end
 
+--- Check for faction/safehouse membership changes
+--- Called periodically to detect when player joins/leaves faction or safehouse
+function Client.CheckFactionSafehouseChanges()
+    local player = getPlayer()
+    if not player then return end
+    
+    local changed = false
+    
+    -- Check faction
+    local currentFactionName = nil
+    if Faction and Faction.getPlayerFaction then
+        local faction = Faction.getPlayerFaction(player)
+        if faction then
+            currentFactionName = faction:getName()
+        end
+    end
+    
+    if currentFactionName ~= Client.lastFactionName then
+        if Client.lastFactionName and not currentFactionName then
+            print("[ChatSystem] Client: Player left faction: " .. tostring(Client.lastFactionName))
+        elseif not Client.lastFactionName and currentFactionName then
+            print("[ChatSystem] Client: Player joined faction: " .. tostring(currentFactionName))
+        elseif Client.lastFactionName and currentFactionName then
+            print("[ChatSystem] Client: Player changed faction from " .. tostring(Client.lastFactionName) .. " to " .. tostring(currentFactionName))
+        end
+        Client.lastFactionName = currentFactionName
+        changed = true
+    end
+    
+    -- Check safehouse (use coordinates as unique ID)
+    local currentSafehouseId = nil
+    if SafeHouse and SafeHouse.hasSafehouse then
+        local safehouse = SafeHouse.hasSafehouse(player)
+        if safehouse then
+            currentSafehouseId = tostring(safehouse:getX()) .. "_" .. tostring(safehouse:getY())
+        end
+    end
+    
+    if currentSafehouseId ~= Client.lastSafehouseId then
+        if Client.lastSafehouseId and not currentSafehouseId then
+            print("[ChatSystem] Client: Player left safehouse")
+        elseif not Client.lastSafehouseId and currentSafehouseId then
+            print("[ChatSystem] Client: Player joined safehouse")
+        elseif Client.lastSafehouseId and currentSafehouseId then
+            print("[ChatSystem] Client: Player changed safehouse")
+        end
+        Client.lastSafehouseId = currentSafehouseId
+        changed = true
+    end
+    
+    -- Refresh channels if faction or safehouse changed
+    if changed then
+        Client.RefreshAvailableChannels()
+    end
+end
+
 -- ==========================================================
 -- Remote Player Events (via KoniLib)
 -- ==========================================================
@@ -996,8 +1056,28 @@ local function OnGameStart()
     -- Initialize channel tracking
     Client.lastAvailableChannels = Client.GetAvailableChannels()
     
+    -- Initialize faction/safehouse tracking
+    local player = getPlayer()
+    if player then
+        if Faction and Faction.getPlayerFaction then
+            local faction = Faction.getPlayerFaction(player)
+            if faction then
+                Client.lastFactionName = faction:getName()
+            end
+        end
+        if SafeHouse and SafeHouse.hasSafehouse then
+            local safehouse = SafeHouse.hasSafehouse(player)
+            if safehouse then
+                Client.lastSafehouseId = tostring(safehouse:getX()) .. "_" .. tostring(safehouse:getY())
+            end
+        end
+    end
+    
     -- Register periodic cleanup for typing indicators (handles LOCAL range issues)
     Events.OnTick.Add(OnTick)
+    
+    -- Register periodic check for faction/safehouse changes
+    Events.EveryOneMinute.Add(Client.CheckFactionSafehouseChanges)
 end
 
 Events.OnGameStart.Add(OnGameStart)
