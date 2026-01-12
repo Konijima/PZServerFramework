@@ -10,6 +10,7 @@ KoniLib provides a set of **standardized lifecycle events** that solve common pr
 | No way to distinguish join vs respawn | `OnPlayerInit` provides `isRespawn` flag |
 | No client notification when others join/die/quit | `OnRemotePlayer*` events |
 | `OnPlayerDeath` inconsistent across MP/SP | Unified wrapper that works everywhere |
+| No event when access level changes | `OnAccessLevelChanged` detects promotions/demotions |
 
 ---
 
@@ -313,6 +314,50 @@ end)
 - Update player list UI
 - Clean up trade/party UI
 - Remove map markers for that player
+
+---
+
+### OnAccessLevelChanged
+
+**Context:** Client Only  
+**When:** The local player's access level changes (e.g., promoted to admin, demoted)
+
+#### Why Use This?
+
+When server admins promote or demote a player, there's no vanilla event to detect this change. This event polls the player's access level and fires when it changes.
+
+#### Arguments
+
+| Name | Type | Description |
+|------|------|-------------|
+| `newAccessLevel` | string | The new access level (e.g., "admin", "moderator", "") |
+| `oldAccessLevel` | string\|nil | The previous access level |
+
+#### Example
+
+```lua
+KoniLib.Events.OnAccessLevelChanged:Add(function(newLevel, oldLevel)
+    if newLevel == "admin" then
+        showNotification("You have been promoted to Admin!")
+        enableAdminUI()
+    elseif newLevel == "moderator" then
+        showNotification("You have been promoted to Moderator!")
+        enableModeratorUI()
+    elseif newLevel == "" or newLevel == "None" then
+        if oldLevel and oldLevel ~= "" then
+            showNotification("Your access level has been revoked")
+            disableStaffUI()
+        end
+    end
+end)
+```
+
+#### Use Cases
+
+- Show/hide admin UI panels when promoted
+- Display promotion/demotion notifications
+- Update available commands in chat
+- Enable/disable staff-only features
 
 ---
 

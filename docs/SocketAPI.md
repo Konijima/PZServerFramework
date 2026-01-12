@@ -33,7 +33,7 @@ chat:use("connection", function(player, auth, context, next, reject)
     -- Pass data to context (available in all handlers)
     next({ 
         username = auth.username,
-        joinedAt = os.time()
+        joinedAt = getTimestampMs()
     })
 end)
 
@@ -54,7 +54,7 @@ chat:on("message", function(player, data, context, ack)
     chat:to(data.room):emit("message", {
         from = context.username,
         text = data.text,
-        timestamp = os.time()
+        timestamp = getTimestampMs()
     })
     
     -- Acknowledge receipt
@@ -351,8 +351,8 @@ local lastMessage = {}
 chat:use("emit", function(player, event, data, context, next, reject)
     if event == "message" then
         local username = player:getUsername()
-        local now = os.time()
-        if lastMessage[username] and now - lastMessage[username] < 1 then
+        local now = getTimestampMs()
+        if lastMessage[username] and now - lastMessage[username] < 1000 then
             return reject("Rate limited")
         end
         lastMessage[username] = now
@@ -686,7 +686,7 @@ trade:on("acceptTrade", function(player, data, context, ack)
     end
     
     -- Create trade room
-    local roomId = "trade-" .. os.time()
+    local roomId = "trade-" .. getTimestampMs()
     trade:join(player, roomId)
     trade:join(requester, roomId)
     

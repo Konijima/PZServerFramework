@@ -186,6 +186,8 @@ ChatSystem.Commands.Register({
 | `ADMIN` | Game Masters | gm |
 | `OWNER` | Server admins (highest) | admin |
 
+**Note:** The hierarchy is: PLAYER < MODERATOR < ADMIN < OWNER. Higher levels can use commands of lower levels.
+
 ### Argument Types
 
 | Type | Description |

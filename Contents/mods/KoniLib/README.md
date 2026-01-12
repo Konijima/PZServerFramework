@@ -1,12 +1,19 @@
 # KoniLib
 
-**KoniLib** is a shared library mod designed to provide common utilities and abstractions for Project Zomboid mods in this suite. It serves as a strict dependency for mods like **AreaSystem**.
+**KoniLib** is a shared library mod designed to provide common utilities and abstractions for Project Zomboid mods in this suite. It serves as a strict dependency for mods like **AreaSystem** and **ChatSystem**.
 
 > **📚 Full Documentation:** See [docs/API.md](../../../docs/API.md) for complete API reference.
 
 ## Features
 
-### 1. Multiplayer (MP) Abstraction
+### 1. Centralized Logging
+The `KoniLib.Log` module provides per-module verbose logging with easy enable/disable:
+```lua
+KoniLib.Log.Print("MyMod", "Player joined")  -- [KoniLib.MyMod] Player joined
+KoniLib.Log.SetVerbose("MyMod", false)       -- Disable logging for MyMod
+```
+
+### 2. Multiplayer (MP) Abstraction
 The `KoniLib.MP` module unifies networking logic, allowing developers to write code that works seamlessly across:
 - **Singleplayer** (Local Loopback)
 - **Hosted Multiplayer** (Listen/Host)
@@ -14,7 +21,7 @@ The `KoniLib.MP` module unifies networking logic, allowing developers to write c
 
 It removes the need to manually check `isClient()` or `isServer()` for every action.
 
-### 2. Socket.io-like Networking (NEW)
+### 3. Socket.io-like Networking
 The `KoniLib.Socket` module provides a **Socket.io-inspired** networking abstraction with:
 - **Namespaces** - Isolated communication channels (e.g., `/chat`, `/trade`)
 - **Rooms** - Group players for targeted messaging
@@ -24,7 +31,7 @@ The `KoniLib.Socket` module provides a **Socket.io-inspired** networking abstrac
 
 See [SocketAPI.md](../../../docs/SocketAPI.md) for full documentation.
 
-### 3. Event System Abstraction
+### 4. Event System Abstraction
 The `KoniLib.Event` module provides an object-oriented wrapper around Project Zomboid's native event system. It simplifies the registration, subscription, and triggering of custom events.
 
 **Key benefits:**
@@ -131,7 +138,7 @@ chat:emit("message", { text = "Hello!" }, function(response)
 end)
 ```
 
-### 4. Custom Lifecycle Events
+### 5. Custom Lifecycle Events
 KoniLib introduces a set of standardized events to handle player lifecycle and networking reliably, fixing common issues where vanilla events fire too early or inconsistently across MP/SP.
 
 See [EventsAPI.md](../../../docs/EventsAPI.md) for full documentation with flow diagrams and examples.
@@ -143,6 +150,7 @@ See [EventsAPI.md](../../../docs/EventsAPI.md) for full documentation with flow 
 | `KoniLib.Events.OnRemotePlayerInit` | `username`, `isRespawn` | Fires when **another** player joins or respawns on the server. Useful for chat messages or UI updates. |
 | `KoniLib.Events.OnRemotePlayerDeath` | `username`, `x`, `y`, `z` | Fires when **another** player dies. |
 | `KoniLib.Events.OnRemotePlayerQuit` | `username` | Fires when **another** player disconnects. |
+| `KoniLib.Events.OnAccessLevelChanged` | `newLevel`, `oldLevel` | Fires when local player's access level changes (promoted/demoted). |
 
 #### Shared Events (Client & Server)
 | Event | Arguments | Description |

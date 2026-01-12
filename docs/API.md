@@ -12,7 +12,47 @@ KoniLib is a core utility library for Project Zomboid modding, designed to abstr
 
 ---
 
-## 1. Multiplayer (MP) System
+## 1. Logging System
+**Module:** `KoniLib.Log`  
+**File:** `shared/KoniLib/Log.lua`
+
+Centralized logging utility for KoniLib and dependent mods with per-module verbosity control.
+
+### `Log.Print(module, message)`
+Logs a message for a specific module if verbose mode is enabled for that module.
+
+**Parameters:**
+*   `module` (string): The module name (e.g., "MP", "Socket", "Events")
+*   `message` (string): The message to log
+
+**Example:**
+```lua
+KoniLib.Log.Print("MyMod", "Player joined: " .. username)
+-- Output: [KoniLib.MyMod] Player joined: Bob
+```
+
+### `Log.SetVerbose(module, enabled)`
+Enable or disable logging for a specific module.
+
+**Example:**
+```lua
+KoniLib.Log.SetVerbose("Socket", false)  -- Disable Socket logs
+KoniLib.Log.SetVerbose("MyMod", true)    -- Enable custom module logs
+```
+
+### `Log.EnableAll()` / `Log.DisableAll()`
+Bulk toggle logging for all registered modules.
+
+### Default Modules
+| Module | Default | Description |
+|--------|---------|-------------|
+| `MP` | Enabled | MP system messages |
+| `Socket` | Enabled | Socket.io networking |
+| `Events` | Enabled | Lifecycle events |
+
+---
+
+## 2. Multiplayer (MP) System
 **Module:** `KoniLib.MP`  
 **File:** `shared/KoniLib/MP.lua`
 
@@ -74,7 +114,7 @@ KoniLib.MP.Send(nil, "StatsMod", "GlobalAnnouncement", { message = "Server Resta
 
 ---
 
-## 2. Socket System (Socket.io-like)
+## 3. Socket System (Socket.io-like)
 **Module:** `KoniLib.Socket`  
 **Files:** `shared/KoniLib/Socket.lua`, `client/KoniLib/SocketClient.lua`, `server/KoniLib/SocketServer.lua`
 
@@ -152,7 +192,7 @@ chat:leaveRoom("global")
 
 ---
 
-## 3. Event System
+## 4. Event System
 **Module:** `KoniLib.Event`  
 **File:** `shared/KoniLib/Event.lua`
 
@@ -188,7 +228,7 @@ MyEvent:Trigger("Bob")
 
 ---
 
-## 4. Lifecycle & Lifecycle Events
+## 5. Lifecycle & Lifecycle Events
 **Module:** `KoniLib.Events`  
 **Files:** `shared/KoniLib/CustomEvents.lua`, `client/KoniLib/CustomEventsClient.lua`, `server/KoniLib/CustomEventsServer.lua`
 
@@ -270,7 +310,7 @@ end)
 
 ---
 
-## 5. Full Workflow Example
+## 6. Full Workflow Example
 
 Here is how you would setup a mod that syncs a "Mana" stat.
 
