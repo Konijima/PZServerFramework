@@ -31,3 +31,8 @@ KoniLib.Events.OnPlayerQuit = Event.new("OnPlayerQuit")
 -- Registers "OnRemotePlayerQuit" (Client Side Notification)
 -- Arguments: username (string)
 KoniLib.Events.OnRemotePlayerQuit = Event.new("OnRemotePlayerQuit")
+
+-- Registers "OnAccessLevelChanged" (Client Side Detection)
+-- Triggered when the local player's access level changes (e.g., promoted to moderator/admin)
+-- Arguments: newAccessLevel (string), oldAccessLevel (string|nil)
+KoniLib.Events.OnAccessLevelChanged = Event.new("OnAccessLevelChanged")

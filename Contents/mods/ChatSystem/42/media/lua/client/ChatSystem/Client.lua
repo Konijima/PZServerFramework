@@ -27,6 +27,9 @@ Client.lastTypingTime = 0
 Client.conversations = {}  -- { [username] = { messages = {}, unread = 0 } }
 Client.activeConversation = nil  -- Username of active PM conversation (nil = normal channel)
 
+-- Channel tracking (to detect changes in available channels)
+Client.lastAvailableChannels = nil
+
 -- ==========================================================
 -- Socket Connection
 -- ==========================================================
@@ -768,12 +771,61 @@ local function OnGameStart()
             KoniLib.Events.OnRemotePlayerDeath:Add(OnRemotePlayerDeath)
             print("[ChatSystem] Client: Registered OnRemotePlayerDeath handler")
         end
+        if KoniLib.Events.OnAccessLevelChanged then
+            KoniLib.Events.OnAccessLevelChanged:Add(OnAccessLevelChanged)
+            print("[ChatSystem] Client: Registered OnAccessLevelChanged handler")
+        end
     else
         print("[ChatSystem] Client: WARNING - KoniLib.Events not available!")
     end
+    
+    -- Initialize channel tracking
+    Client.lastAvailableChannels = Client.GetAvailableChannels()
 end
 
 Events.OnGameStart.Add(OnGameStart)
+
+-- ==========================================================
+-- Access Level Change Handler
+-- ==========================================================
+
+--- Handle access level changes (from KoniLib event)
+---@param newLevel string|nil
+---@param oldLevel string|nil
+local function OnAccessLevelChanged(newLevel, oldLevel)
+    print("[ChatSystem] Client: Access level changed from " .. tostring(oldLevel) .. " to " .. tostring(newLevel))
+    Client.RefreshAvailableChannels()
+end
+
+--- Refresh available channels and update UI if changed
+function Client.RefreshAvailableChannels()
+    local currentChannels = Client.GetAvailableChannels()
+    local channelsChanged = false
+    
+    if Client.lastAvailableChannels then
+        -- Compare channel lists
+        if #currentChannels ~= #Client.lastAvailableChannels then
+            channelsChanged = true
+        else
+            for i, ch in ipairs(currentChannels) do
+                if ch ~= Client.lastAvailableChannels[i] then
+                    channelsChanged = true
+                    break
+                end
+            end
+        end
+    else
+        channelsChanged = true
+    end
+    
+    if channelsChanged then
+        print("[ChatSystem] Client: Available channels changed, updating UI")
+        Client.lastAvailableChannels = currentChannels
+        
+        -- Trigger settings changed event to update UI (tabs, etc.)
+        ChatSystem.Events.OnSettingsChanged:Trigger(ChatSystem.Settings)
+    end
+end
 
 -- ==========================================================
 -- Remote Player Events (via KoniLib)

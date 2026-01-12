@@ -101,3 +101,45 @@ MP.Register("KoniLib", "PlayerQuit", function(player, args)
     end
     MP.Log("Remote player quit: " .. tostring(username))
 end)
+
+-- ==========================================================
+-- Access Level Change Detection
+-- ==========================================================
+
+local lastAccessLevel = nil
+local accessCheckTicker = 0
+local accessCheckInitialized = false
+
+local function checkAccessLevelChange()
+    -- Only check every ~60 ticks (about 1 second)
+    accessCheckTicker = accessCheckTicker + 1
+    if accessCheckTicker < 60 then return end
+    accessCheckTicker = 0
+    
+    -- Get current access level
+    local currentAccessLevel = getAccessLevel and getAccessLevel() or nil
+    
+    -- Initialize on first check
+    if not accessCheckInitialized then
+        lastAccessLevel = currentAccessLevel
+        accessCheckInitialized = true
+        return
+    end
+    
+    -- Check if access level changed
+    if currentAccessLevel ~= lastAccessLevel then
+        MP.Log("Access level changed from " .. tostring(lastAccessLevel) .. " to " .. tostring(currentAccessLevel))
+        
+        local oldLevel = lastAccessLevel
+        lastAccessLevel = currentAccessLevel
+        
+        -- Trigger event
+        if KoniLib.Events and KoniLib.Events.OnAccessLevelChanged then
+            KoniLib.Events.OnAccessLevelChanged:Trigger(currentAccessLevel, oldLevel)
+        else
+            triggerEvent("OnAccessLevelChanged", currentAccessLevel, oldLevel)
+        end
+    end
+end
+
+Events.OnTick.Add(checkAccessLevelChange)
