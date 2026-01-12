@@ -732,7 +732,7 @@ function Client.ClearMessages()
 end
 
 -- ==========================================================
--- Initialization
+-- Vanilla Message Handling
 -- ==========================================================
 
 -- List of vanilla server message patterns to filter out (not shown in custom chat)
@@ -836,7 +836,7 @@ local function OnVanillaMessage(message, tabID)
 end
 
 -- ==========================================================
--- Access Level Change Handler
+-- Channel Availability Events
 -- ==========================================================
 
 --- Handle access level changes (from KoniLib event)
@@ -874,6 +874,8 @@ function Client.RefreshAvailableChannels()
         ChatSystem.Events.OnSettingsChanged:Trigger(ChatSystem.Settings)
     end
 end
+
+-- Faction/Safehouse membership change handlers
 
 --- Handle faction sync event (triggered when faction membership changes)
 ---@param factionName string The name of the faction that was synced
