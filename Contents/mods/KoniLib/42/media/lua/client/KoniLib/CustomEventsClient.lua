@@ -116,8 +116,25 @@ local function checkAccessLevelChange()
     if accessCheckTicker < 60 then return end
     accessCheckTicker = 0
     
-    -- Get current access level
-    local currentAccessLevel = getAccessLevel and getAccessLevel() or nil
+    -- Get current access level - try multiple methods
+    local currentAccessLevel = nil
+    
+    -- Method 1: Global getAccessLevel() function
+    if getAccessLevel then
+        currentAccessLevel = getAccessLevel()
+    end
+    
+    -- Method 2: Player object's getAccessLevel method (may be more up-to-date)
+    local player = getPlayer()
+    local playerAccessLevel = nil
+    if player and player.getAccessLevel then
+        playerAccessLevel = player:getAccessLevel()
+    end
+    
+    -- Use player method if available and different (it might be more current)
+    if playerAccessLevel and playerAccessLevel ~= "" then
+        currentAccessLevel = playerAccessLevel
+    end
     
     -- Initialize on first check
     if not accessCheckInitialized then
@@ -128,8 +145,6 @@ local function checkAccessLevelChange()
     
     -- Check if access level changed
     if currentAccessLevel ~= lastAccessLevel then
-        MP.Log("Access level changed from " .. tostring(lastAccessLevel) .. " to " .. tostring(currentAccessLevel))
-        
         local oldLevel = lastAccessLevel
         lastAccessLevel = currentAccessLevel
         

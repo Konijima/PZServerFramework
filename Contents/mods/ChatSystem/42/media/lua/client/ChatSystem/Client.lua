@@ -90,6 +90,38 @@ function Client.Connect()
             ChatSystem.Events.OnPlayersUpdated:Trigger(data.players)
         end
     end)
+    
+    -- Teleport handler (for /tp, /bring and similar commands)
+    -- Uses vanilla commands which are processed by Java server-side
+    Client.socket:on("teleport", function(data)
+        if not data then return end
+        
+        local player = getPlayer()
+        if not player then return end
+        
+        if data.type == "bring" then
+            -- Teleport another player TO the admin (this client)
+            -- Uses vanilla /teleportplayer "target" "destination"
+            local adminName = player:getDisplayName()
+            SendCommandToServer("/teleportplayer \"" .. data.target .. "\" \"" .. adminName .. "\"")
+            
+        elseif data.type == "goto_player" then
+            -- Teleport this client TO another player
+            -- Uses vanilla /teleport "playername"
+            SendCommandToServer("/teleport \"" .. data.target .. "\"")
+            
+        elseif data.type == "goto_coords" then
+            -- Teleport this client to coordinates
+            -- Uses vanilla /teleportto x,y,z
+            SendCommandToServer("/teleportto " .. tostring(data.x) .. "," .. tostring(data.y) .. "," .. tostring(data.z))
+            
+        else
+            -- Fallback: legacy coordinate-based teleport
+            if data.x and data.y and data.z then
+                SendCommandToServer("/teleportto " .. tostring(data.x) .. "," .. tostring(data.y) .. "," .. tostring(data.z))
+            end
+        end
+    end)
 end
 
 -- ==========================================================
@@ -473,9 +505,13 @@ function Client.GetAvailableChannels()
         
         -- Check admin (only if admin chat is enabled and player is actual admin)
         if settings.enableAdminChat then
-            local accessLevel = getAccessLevel and getAccessLevel()
+            -- Try player method first (may be more up-to-date than global function)
+            local accessLevel = player.getAccessLevel and player:getAccessLevel()
+            if not accessLevel or accessLevel == "" then
+                accessLevel = getAccessLevel and getAccessLevel()
+            end
             -- Only "admin" access level can see admin chat (not moderator, observer, etc.)
-            if accessLevel and string.lower(accessLevel) == "admin" then
+            if accessLevel and accessLevel ~= "" and string.lower(accessLevel) == "admin" then
                 table.insert(channels, ChatSystem.ChannelType.ADMIN)
             end
         end
@@ -509,8 +545,12 @@ function Client.GetAvailableChannels()
             
             -- Fallback: check specific staff roles (not observer)
             if not isStaff then
-                local accessLevel = getAccessLevel and getAccessLevel()
-                if accessLevel then
+                -- Try player method first (may be more up-to-date than global function)
+                local accessLevel = player.getAccessLevel and player:getAccessLevel()
+                if not accessLevel or accessLevel == "" then
+                    accessLevel = getAccessLevel and getAccessLevel()
+                end
+                if accessLevel and accessLevel ~= "" then
                     local level = string.lower(accessLevel)
                     -- Staff roles: admin, moderator, overseer, gm (NOT observer)
                     isStaff = level == "admin" or level == "moderator" or level == "overseer" or level == "gm"
@@ -751,40 +791,6 @@ local function OnVanillaMessage(message, tabID)
     print("[ChatSystem] Client: Captured vanilla message from " .. tostring(author) .. ": " .. text)
 end
 
-local function OnGameStart()
-    Client.Connect()
-    
-    -- Hook vanilla chat messages to capture yells, server announcements, etc.
-    Events.OnAddMessage.Add(OnVanillaMessage)
-    
-    -- Register for KoniLib remote player events (deferred to ensure KoniLib is loaded)
-    if KoniLib and KoniLib.Events then
-        if KoniLib.Events.OnRemotePlayerInit then
-            KoniLib.Events.OnRemotePlayerInit:Add(OnRemotePlayerInit)
-            print("[ChatSystem] Client: Registered OnRemotePlayerInit handler")
-        end
-        if KoniLib.Events.OnRemotePlayerQuit then
-            KoniLib.Events.OnRemotePlayerQuit:Add(OnRemotePlayerQuit)
-            print("[ChatSystem] Client: Registered OnRemotePlayerQuit handler")
-        end
-        if KoniLib.Events.OnRemotePlayerDeath then
-            KoniLib.Events.OnRemotePlayerDeath:Add(OnRemotePlayerDeath)
-            print("[ChatSystem] Client: Registered OnRemotePlayerDeath handler")
-        end
-        if KoniLib.Events.OnAccessLevelChanged then
-            KoniLib.Events.OnAccessLevelChanged:Add(OnAccessLevelChanged)
-            print("[ChatSystem] Client: Registered OnAccessLevelChanged handler")
-        end
-    else
-        print("[ChatSystem] Client: WARNING - KoniLib.Events not available!")
-    end
-    
-    -- Initialize channel tracking
-    Client.lastAvailableChannels = Client.GetAvailableChannels()
-end
-
-Events.OnGameStart.Add(OnGameStart)
-
 -- ==========================================================
 -- Access Level Change Handler
 -- ==========================================================
@@ -793,7 +799,6 @@ Events.OnGameStart.Add(OnGameStart)
 ---@param newLevel string|nil
 ---@param oldLevel string|nil
 local function OnAccessLevelChanged(newLevel, oldLevel)
-    print("[ChatSystem] Client: Access level changed from " .. tostring(oldLevel) .. " to " .. tostring(newLevel))
     Client.RefreshAvailableChannels()
 end
 
@@ -819,7 +824,6 @@ function Client.RefreshAvailableChannels()
     end
     
     if channelsChanged then
-        print("[ChatSystem] Client: Available channels changed, updating UI")
         Client.lastAvailableChannels = currentChannels
         
         -- Trigger settings changed event to update UI (tabs, etc.)
@@ -898,5 +902,43 @@ local function OnRemotePlayerDeath(username, x, y, z)
     -- Trigger event for UI update
     ChatSystem.Events.OnMessageReceived:Trigger(msg)
 end
+
+-- ==========================================================
+-- Initialization
+-- ==========================================================
+
+local function OnGameStart()
+    Client.Connect()
+    
+    -- Hook vanilla chat messages to capture yells, server announcements, etc.
+    Events.OnAddMessage.Add(OnVanillaMessage)
+    
+    -- Register for KoniLib remote player events (deferred to ensure KoniLib is loaded)
+    if KoniLib and KoniLib.Events then
+        if KoniLib.Events.OnRemotePlayerInit then
+            KoniLib.Events.OnRemotePlayerInit:Add(OnRemotePlayerInit)
+            print("[ChatSystem] Client: Registered OnRemotePlayerInit handler")
+        end
+        if KoniLib.Events.OnRemotePlayerQuit then
+            KoniLib.Events.OnRemotePlayerQuit:Add(OnRemotePlayerQuit)
+            print("[ChatSystem] Client: Registered OnRemotePlayerQuit handler")
+        end
+        if KoniLib.Events.OnRemotePlayerDeath then
+            KoniLib.Events.OnRemotePlayerDeath:Add(OnRemotePlayerDeath)
+            print("[ChatSystem] Client: Registered OnRemotePlayerDeath handler")
+        end
+        if KoniLib.Events.OnAccessLevelChanged then
+            KoniLib.Events.OnAccessLevelChanged:Add(OnAccessLevelChanged)
+            print("[ChatSystem] Client: Registered OnAccessLevelChanged handler")
+        end
+    else
+        print("[ChatSystem] Client: WARNING - KoniLib.Events not available!")
+    end
+    
+    -- Initialize channel tracking
+    Client.lastAvailableChannels = Client.GetAvailableChannels()
+end
+
+Events.OnGameStart.Add(OnGameStart)
 
 print("[ChatSystem] Client Loaded (multiplayer)")

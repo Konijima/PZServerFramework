@@ -357,6 +357,7 @@ Commands.Register({
     },
     handler = function(context)
         local targetStr = context.args.target
+        local chatSocket = KoniLib.Socket.of("/chat")
         
         -- Try coordinates first
         local x, y, z = targetStr:match("([%d.-]+)[,:%s]+([%d.-]+)[,:%s]*([%d.-]*)")
@@ -365,8 +366,14 @@ Commands.Register({
             z = tonumber(z) or context.player:getZ()
             
             if x and y then
-                context.player:teleportTo(x, y, z)
-                Server.ReplySuccess(context.player, "Teleported to " .. x .. ", " .. y .. ", " .. z, context.channel)
+                -- Emit to admin's client for coordinate teleport
+                -- Vanilla command will send its own confirmation
+                chatSocket:to(context.player):emit("teleport", {
+                    type = "goto_coords",
+                    x = x,
+                    y = y,
+                    z = z
+                })
                 return
             end
         end
@@ -378,9 +385,12 @@ Commands.Register({
             return
         end
         
-        context.player:teleportTo(target:getX(), target:getY(), target:getZ())
-        
-        Server.ReplySuccess(context.player, "Teleported to " .. target:getUsername(), context.channel)
+        -- Emit to admin's client for player teleport
+        -- Vanilla command will send its own confirmation
+        chatSocket:to(context.player):emit("teleport", {
+            type = "goto_player",
+            target = target:getDisplayName()  -- vanilla uses displayName, not username
+        })
     end
 })
 
@@ -409,11 +419,16 @@ Commands.Register({
             return
         end
         
-        target:teleportTo(context.player:getX(), context.player:getY(), context.player:getZ())
+        -- Emit to admin's client - they will use vanilla /teleportplayer command
+        -- This works because vanilla commands are processed by Java server-side
+        local chatSocket = KoniLib.Socket.of("/chat")
+        chatSocket:to(context.player):emit("teleport", {
+            type = "bring",
+            target = target:getDisplayName()  -- vanilla uses displayName, not username
+        })
         
-        Server.ReplySuccess(context.player, "Teleported " .. targetName .. " to you", context.channel)
-        -- Notify target in LOCAL so they always see it regardless of their active channel
-        Server.Reply(target, "You have been teleported to " .. context.username, nil, ChatSystem.ChannelType.LOCAL)
+        -- Vanilla command will send its own confirmation, so we only notify the target
+        Server.Reply(target, "You have been teleported to " .. context.username, nil, context.channel)
     end
 })
 
