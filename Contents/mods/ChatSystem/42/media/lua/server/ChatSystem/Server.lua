@@ -202,6 +202,41 @@ end
 -- Socket Middleware
 -- ==========================================================
 
+--- Build current player list for broadcasting
+---@return table Array of player data
+local function buildPlayerList()
+    local players = {}
+    local onlinePlayers = getOnlinePlayers()
+    
+    if not onlinePlayers then
+        local p = getPlayer()
+        if p then
+            table.insert(players, {
+                username = p:getUsername(),
+                isAdmin = isPlayerAdmin(p),
+                isStaff = isPlayerStaff(p)
+            })
+        end
+    else
+        for i = 0, onlinePlayers:size() - 1 do
+            local p = onlinePlayers:get(i)
+            table.insert(players, {
+                username = p:getUsername(),
+                isAdmin = isPlayerAdmin(p),
+                isStaff = isPlayerStaff(p)
+            })
+        end
+    end
+    
+    return players
+end
+
+--- Broadcast updated player list to all connected clients
+local function broadcastPlayerList()
+    local players = buildPlayerList()
+    chatSocket:broadcast():emit("playerList", { players = players })
+end
+
 -- Connection middleware - store player data
 chatSocket:use(Socket.MIDDLEWARE.CONNECTION, function(player, auth, context, next, reject)
     local username = player:getUsername()
@@ -217,6 +252,9 @@ chatSocket:use(Socket.MIDDLEWARE.CONNECTION, function(player, auth, context, nex
     
     Socket.Log("Player connected to chat: " .. username)
     next({ username = username })
+    
+    -- Broadcast updated player list to all clients (after connection is established)
+    broadcastPlayerList()
 end)
 
 -- Disconnect middleware - cleanup
@@ -225,6 +263,9 @@ chatSocket:use(Socket.MIDDLEWARE.DISCONNECT, function(player, context, next, rej
     playerData[username] = nil
     Socket.Log("Player disconnected from chat: " .. username)
     next()
+    
+    -- Broadcast updated player list to all clients (after disconnect is processed)
+    broadcastPlayerList()
 end)
 
 -- Track last message time for slow mode
@@ -709,33 +750,8 @@ function Server.BroadcastSystemMessage(text, color)
     chatSocket:broadcast():emit("message", msg)
 end
 
--- Player connected/initialized on server
-local function OnPlayerInit(playerIndex, player, isRespawn)
-    if not player then return end
-    
-    local username = player:getUsername()
-    
-    -- Delay the broadcast slightly to allow socket connection to establish
-    -- Use a simple timer approach
-    local ticksToWait = 30 -- About 0.5 seconds
-    local tickCount = 0
-    
-    local function delayedBroadcast()
-        tickCount = tickCount + 1
-        if tickCount >= ticksToWait then
-            Events.OnTick.Remove(delayedBroadcast)
-            if isRespawn then
-                Server.BroadcastSystemMessage(username .. " has respawned.", { r = 0.5, g = 1, b = 0.5 }) -- Light green
-            else
-                Server.BroadcastSystemMessage(username .. " has joined the server.", { r = 0.5, g = 1, b = 0.5 }) -- Light green
-            end
-        end
-    end
-    
-    Events.OnTick.Add(delayedBroadcast)
-end
-
 -- Player quit/disconnected from server (detected by KoniLib polling)
+-- Note: Join/leave/death messages are handled client-side via KoniLib.Events.OnRemotePlayer* events
 local function OnPlayerQuit(username)
     -- Cleanup typing indicators
     for channel, players in pairs(typingPlayers) do
@@ -746,20 +762,9 @@ local function OnPlayerQuit(username)
     
     -- Cleanup player data
     playerData[username] = nil
-    
-    Server.BroadcastSystemMessage(username .. " has left the server.", { r = 0.6, g = 0.6, b = 0.6 }) -- Gray
 end
 
--- Player died
-local function OnPlayerDeath(player)
-    if not player then return end
-    local username = player:getUsername()
-    Server.BroadcastSystemMessage(username .. " has died.", { r = 1, g = 0.3, b = 0.3 }) -- Red
-end
-
--- Use KoniLib events for reliable detection
-KoniLib.Events.OnPlayerInit:Add(OnPlayerInit)
+-- Use KoniLib events for cleanup
 KoniLib.Events.OnPlayerQuit:Add(OnPlayerQuit)
-KoniLib.Events.OnPlayerDeath:Add(OnPlayerDeath)
 
 print("[ChatSystem] Server Loaded")

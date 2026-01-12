@@ -398,6 +398,15 @@ function ISCustomChat:onPmTabClick(button)
 end
 
 function ISCustomChat:onNewPmClick()
+    -- Check if player is dead
+    local player = getPlayer()
+    if player and player:isDead() then
+        return
+    end
+    
+    -- Refresh the player list from server before showing the menu
+    ChatSystem.Client.RefreshPlayers()
+    
     -- Show dropdown of online players
     local x = self:getAbsoluteX() + (self.newPmBtn and self.newPmBtn:getX() or 0)
     local y = self:getAbsoluteY() + (self.newPmBtn and (self.newPmBtn:getY() + self.newPmBtn:getHeight()) or 0)
@@ -405,22 +414,19 @@ function ISCustomChat:onNewPmClick()
     local context = ISContextMenu.get(0, x, y)
     if not context then return end
     
-    -- Get online players from game API directly
-    local myUsername = getPlayer() and getPlayer():getUsername() or ""
+    -- Get online players from ChatSystem Client (fetched from server via socket)
+    local myUsername = player and player:getUsername() or ""
     local hasPlayers = false
     
-    -- Use the game's connected players list
-    local connectedPlayers = getOnlinePlayers()
-    if connectedPlayers and connectedPlayers:size() > 0 then
-        for i = 0, connectedPlayers:size() - 1 do
-            local player = connectedPlayers:get(i)
-            if player then
-                local playerName = player:getUsername()
-                -- Ensure playerName is a valid string
-                if playerName and type(playerName) == "string" and playerName ~= "" and playerName ~= myUsername then
-                    context:addOption(tostring(playerName), self, ISCustomChat.onSelectPlayerForPm, tostring(playerName))
-                    hasPlayers = true
-                end
+    -- Use ChatSystem.Client.GetOnlinePlayers() which returns the server's player list
+    local onlinePlayers = ChatSystem.Client.GetOnlinePlayers()
+    if onlinePlayers then
+        for _, playerData in ipairs(onlinePlayers) do
+            local playerName = playerData.username
+            -- Ensure playerName is a valid string and not the current player
+            if playerName and type(playerName) == "string" and playerName ~= "" and playerName ~= myUsername then
+                context:addOption(tostring(playerName), self, ISCustomChat.onSelectPlayerForPm, tostring(playerName))
+                hasPlayers = true
             end
         end
     end
@@ -779,8 +785,8 @@ function ISCustomChat:onCommandEntered()
             end
             chat.historyIndex = 0
             
-            -- Send as PM
-            ChatSystem.Client.SendPrivateMessage(activeConversation, text)
+            -- Send as PM (SendMessageDirect handles activeConversation automatically)
+            ChatSystem.Client.SendMessageDirect(text)
         else
             -- Check if user typed a channel command (e.g., /l, /g)
             -- If so, switch channel and extract the message
@@ -1049,21 +1055,14 @@ end
 
 ---@param channel string
 ---@param users table Array of usernames
----@param target string|nil Optional target for PM typing
-function ISCustomChat:updateTypingIndicator(channel, users, target)
+---@param typingUser string|nil For PM, the username who is typing
+function ISCustomChat:updateTypingIndicator(channel, users, typingUser)
     local key = channel
     
-    -- For PM typing, use a special key based on the typer (who is typing to me)
-    if channel == "private" and target then
-        -- When someone is typing a PM to me, target is my username
-        -- We need to store it by who is typing
-        -- The "users" array contains who is typing
-        if #users > 0 then
-            key = "pm:" .. users[1]  -- The person typing to me
-        end
-    elseif channel == "private" then
-        -- Store by channel if no specific target
-        key = channel
+    -- For PM typing, the key is already "pm:username" from the client
+    -- typingUser tells us who is typing (for PM conversations)
+    if channel == "private" and typingUser then
+        key = "pm:" .. typingUser
     end
     
     -- Store for the appropriate key
@@ -1131,6 +1130,19 @@ function ISCustomChat:prerender()
     elseif not self.fadeEnabled then
         -- Keep at max opacity if fading is disabled
         self.backgroundColor.a = self.maxOpaque
+    end
+    
+    -- Disable PM button if player is dead
+    local player = getPlayer()
+    local isDead = player and player:isDead()
+    if self.newPmBtn then
+        if isDead then
+            self.newPmBtn:setEnable(false)
+            self.newPmBtn:setTooltip("Cannot send messages while dead")
+        else
+            self.newPmBtn:setEnable(true)
+            self.newPmBtn:setTooltip("Start new conversation")
+        end
     end
     
     -- Handle tab flashing for unread messages

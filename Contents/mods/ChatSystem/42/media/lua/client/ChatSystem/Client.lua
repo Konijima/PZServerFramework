@@ -78,6 +78,15 @@ function Client.Connect()
     Client.socket:on("typing", function(data)
         Client.OnTypingReceived(data)
     end)
+    
+    -- Player list update handler
+    Client.socket:on("playerList", function(data)
+        if data and data.players then
+            Client.onlinePlayers = data.players
+            -- Trigger event for UI updates
+            ChatSystem.Events.OnPlayersUpdated:Trigger(data.players)
+        end
+    end)
 end
 
 -- ==========================================================
@@ -92,18 +101,25 @@ function Client.OnTypingReceived(data)
     local isTyping = data.isTyping
     local target = data.target  -- For PM typing
     
-    if not Client.typingPlayers[channel] then
-        Client.typingPlayers[channel] = {}
+    -- For PM typing, use the username as the key (who is typing to us)
+    local trackingKey = channel
+    if channel == ChatSystem.ChannelType.PRIVATE then
+        trackingKey = "pm:" .. username
+    end
+    
+    if not Client.typingPlayers[trackingKey] then
+        Client.typingPlayers[trackingKey] = {}
     end
     
     if isTyping then
-        Client.typingPlayers[channel][username] = true
+        Client.typingPlayers[trackingKey][username] = true
     else
-        Client.typingPlayers[channel][username] = nil
+        Client.typingPlayers[trackingKey][username] = nil
     end
     
-    -- Trigger event for UI update with target info
-    ChatSystem.Events.OnTypingChanged:Trigger(channel, Client.GetTypingUsers(channel), target)
+    -- Trigger event for UI update
+    -- For PM, pass the username who is typing so UI can update the right conversation
+    ChatSystem.Events.OnTypingChanged:Trigger(channel, Client.GetTypingUsers(trackingKey), username)
 end
 
 --- Get list of users typing in a channel
@@ -179,12 +195,14 @@ function Client.OnMessageReceived(message)
         local otherUser = nil
         
         -- Determine who the conversation is with
-        if message.metadata and message.metadata.from then
-            otherUser = message.metadata.from
-        elseif message.metadata and message.metadata.to then
-            otherUser = message.metadata.to
-        elseif message.author ~= myUsername then
-            otherUser = message.author
+        -- If we sent it (author is us), the other user is the recipient (to)
+        -- If we received it (author is not us), the other user is the sender (from or author)
+        if message.author == myUsername then
+            -- We sent this message, conversation is with the recipient
+            otherUser = message.metadata and message.metadata.to
+        else
+            -- We received this message, conversation is with the sender
+            otherUser = (message.metadata and message.metadata.from) or message.author
         end
         
         if otherUser then
@@ -630,6 +648,24 @@ end
 -- Initialization
 -- ==========================================================
 
+-- List of vanilla server message patterns to filter out (not shown in custom chat)
+local filteredVanillaPatterns = {
+    "^Safety:", -- Safety restore messages
+}
+
+--- Check if a vanilla message should be filtered (not shown in chat)
+---@param text string
+---@return boolean
+local function shouldFilterVanillaMessage(text)
+    if not text then return true end
+    for _, pattern in ipairs(filteredVanillaPatterns) do
+        if text:match(pattern) then
+            return true
+        end
+    end
+    return false
+end
+
 --- Hook into vanilla chat messages (yells, server messages, etc.)
 --- This captures messages that bypass our custom chat system
 local function OnVanillaMessage(message, tabID)
@@ -641,6 +677,12 @@ local function OnVanillaMessage(message, tabID)
     
     -- Debug: print the message details
     print("[ChatSystem] Vanilla message - author: " .. tostring(author) .. ", text: " .. tostring(text) .. ", prefix: " .. tostring(textWithPrefix))
+    
+    -- Filter out unwanted server messages
+    if author == "Server" and shouldFilterVanillaMessage(text) then
+        print("[ChatSystem] Filtered vanilla message: " .. text)
+        return
+    end
     
     -- Determine channel based on message source
     local channel = ChatSystem.ChannelType.LOCAL
@@ -711,8 +753,98 @@ local function OnGameStart()
     
     -- Hook vanilla chat messages to capture yells, server announcements, etc.
     Events.OnAddMessage.Add(OnVanillaMessage)
+    
+    -- Register for KoniLib remote player events (deferred to ensure KoniLib is loaded)
+    if KoniLib and KoniLib.Events then
+        if KoniLib.Events.OnRemotePlayerInit then
+            KoniLib.Events.OnRemotePlayerInit:Add(OnRemotePlayerInit)
+            print("[ChatSystem] Client: Registered OnRemotePlayerInit handler")
+        end
+        if KoniLib.Events.OnRemotePlayerQuit then
+            KoniLib.Events.OnRemotePlayerQuit:Add(OnRemotePlayerQuit)
+            print("[ChatSystem] Client: Registered OnRemotePlayerQuit handler")
+        end
+        if KoniLib.Events.OnRemotePlayerDeath then
+            KoniLib.Events.OnRemotePlayerDeath:Add(OnRemotePlayerDeath)
+            print("[ChatSystem] Client: Registered OnRemotePlayerDeath handler")
+        end
+    else
+        print("[ChatSystem] Client: WARNING - KoniLib.Events not available!")
+    end
 end
 
 Events.OnGameStart.Add(OnGameStart)
+
+-- ==========================================================
+-- Remote Player Events (via KoniLib)
+-- ==========================================================
+
+--- Handle remote player join/respawn
+local function OnRemotePlayerInit(username, isRespawn)
+    if not username then return end
+    
+    -- Don't show message for ourselves
+    local myUsername = getPlayer() and getPlayer():getUsername() or ""
+    if username == myUsername then return end
+    
+    local text
+    if isRespawn then
+        text = username .. " has respawned."
+    else
+        text = username .. " has joined the server."
+    end
+    
+    local msg = ChatSystem.CreateSystemMessage(text, ChatSystem.ChannelType.GLOBAL)
+    msg.color = { r = 0.5, g = 1, b = 0.5 } -- Light green
+    
+    -- Store message
+    table.insert(Client.messages, msg)
+    while #Client.messages > ChatSystem.Settings.maxMessagesStored do
+        table.remove(Client.messages, 1)
+    end
+    
+    -- Trigger event for UI update
+    ChatSystem.Events.OnMessageReceived:Trigger(msg)
+    
+    -- Refresh online players list
+    Client.RefreshPlayers()
+end
+
+--- Handle remote player quit
+local function OnRemotePlayerQuit(username)
+    if not username then return end
+    
+    local msg = ChatSystem.CreateSystemMessage(username .. " has left the server.", ChatSystem.ChannelType.GLOBAL)
+    msg.color = { r = 0.6, g = 0.6, b = 0.6 } -- Gray
+    
+    -- Store message
+    table.insert(Client.messages, msg)
+    while #Client.messages > ChatSystem.Settings.maxMessagesStored do
+        table.remove(Client.messages, 1)
+    end
+    
+    -- Trigger event for UI update
+    ChatSystem.Events.OnMessageReceived:Trigger(msg)
+    
+    -- Refresh online players list
+    Client.RefreshPlayers()
+end
+
+--- Handle remote player death
+local function OnRemotePlayerDeath(username, x, y, z)
+    if not username then return end
+    
+    local msg = ChatSystem.CreateSystemMessage(username .. " has died.", ChatSystem.ChannelType.GLOBAL)
+    msg.color = { r = 1, g = 0.3, b = 0.3 } -- Red
+    
+    -- Store message
+    table.insert(Client.messages, msg)
+    while #Client.messages > ChatSystem.Settings.maxMessagesStored do
+        table.remove(Client.messages, 1)
+    end
+    
+    -- Trigger event for UI update
+    ChatSystem.Events.OnMessageReceived:Trigger(msg)
+end
 
 print("[ChatSystem] Client Loaded (multiplayer)")
