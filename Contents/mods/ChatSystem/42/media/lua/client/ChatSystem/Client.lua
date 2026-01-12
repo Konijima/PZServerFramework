@@ -11,6 +11,10 @@ local Socket = require("KoniLib/Socket")
 ChatSystem.Client = {}
 local Client = ChatSystem.Client
 
+-- Load sub-modules (they add functions to Client)
+require "ChatSystem/TypingIndicators"
+require "ChatSystem/VanillaHook"
+
 -- Client state
 Client.socket = nil
 Client.messages = {}       -- All messages
@@ -126,123 +130,6 @@ function Client.Connect()
             end
         end
     end)
-end
-
--- ==========================================================
--- Typing Indicators
--- ==========================================================
-
--- Typing indicator timeout (5 seconds) - indicators not refreshed within this time are cleared
-local TYPING_INDICATOR_TIMEOUT = 5000
-
---- Handle received typing indicator
----@param data table { username, channel, isTyping, target }
-function Client.OnTypingReceived(data)
-    local channel = data.channel or ChatSystem.ChannelType.LOCAL
-    local username = data.username
-    local isTyping = data.isTyping
-    local target = data.target  -- For PM typing
-    
-    -- For PM typing, use the username as the key (who is typing to us)
-    local trackingKey = channel
-    if channel == ChatSystem.ChannelType.PRIVATE then
-        trackingKey = "pm:" .. username
-    end
-    
-    if not Client.typingPlayers[trackingKey] then
-        Client.typingPlayers[trackingKey] = {}
-    end
-    
-    if isTyping then
-        -- Store timestamp to allow timeout-based cleanup
-        Client.typingPlayers[trackingKey][username] = getTimestampMs()
-    else
-        Client.typingPlayers[trackingKey][username] = nil
-    end
-    
-    -- Trigger event for UI update
-    -- For PM, pass the username who is typing so UI can update the right conversation
-    ChatSystem.Events.OnTypingChanged:Trigger(channel, Client.GetTypingUsers(trackingKey), username)
-end
-
---- Get list of users typing in a channel
----@param channel string
----@return table Array of usernames
-function Client.GetTypingUsers(channel)
-    local users = {}
-    if Client.typingPlayers[channel] then
-        for username, _ in pairs(Client.typingPlayers[channel]) do
-            table.insert(users, username)
-        end
-    end
-    return users
-end
-
---- Clear typing indicator for a specific player (used when player dies/quits/goes out of range)
----@param username string
-function Client.ClearTypingIndicator(username)
-    if not username then return end
-    
-    local changed = false
-    for channel, players in pairs(Client.typingPlayers) do
-        if players[username] then
-            players[username] = nil
-            changed = true
-            -- Trigger UI update for this channel
-            ChatSystem.Events.OnTypingChanged:Trigger(channel, Client.GetTypingUsers(channel), username)
-        end
-    end
-end
-
---- Cleanup stale typing indicators (called periodically)
---- Removes typing indicators that haven't been refreshed within the timeout
-function Client.CleanupTypingIndicators()
-    local now = getTimestampMs()
-    
-    for channel, players in pairs(Client.typingPlayers) do
-        for username, timestamp in pairs(players) do
-            -- If timestamp is a number (new format), check for timeout
-            if type(timestamp) == "number" then
-                if now - timestamp > TYPING_INDICATOR_TIMEOUT then
-                    players[username] = nil
-                    ChatSystem.Events.OnTypingChanged:Trigger(channel, Client.GetTypingUsers(channel), username)
-                end
-            elseif timestamp == true then
-                -- Legacy format (boolean) - can't timeout, but will be cleaned up by quit/death events
-            end
-        end
-    end
-end
-
---- Send typing start indicator
----@param channel string
----@param target string|nil Optional target for PM typing
-function Client.StartTyping(channel, target)
-    if not Client.isConnected then return end
-    
-    local now = getTimestampMs()
-    
-    -- Only send if not already typing in this channel, or if it's been a while
-    if not Client.isTyping or Client.typingChannel ~= channel or Client.typingTarget ~= target or (now - Client.lastTypingTime > 3000) then
-        Client.isTyping = true
-        Client.typingChannel = channel
-        Client.typingTarget = target
-        Client.lastTypingTime = now
-        
-        Client.socket:emit("typingStart", { channel = channel, target = target })
-    end
-end
-
---- Send typing stop indicator
-function Client.StopTyping()
-    if not Client.isConnected then return end
-    
-    if Client.isTyping and Client.typingChannel then
-        Client.socket:emit("typingStop", { channel = Client.typingChannel, target = Client.typingTarget })
-        Client.isTyping = false
-        Client.typingChannel = nil
-        Client.typingTarget = nil
-    end
 end
 
 -- ==========================================================
@@ -732,110 +619,6 @@ function Client.ClearMessages()
 end
 
 -- ==========================================================
--- Vanilla Message Handling
--- ==========================================================
-
--- List of vanilla server message patterns to filter out (not shown in custom chat)
-local filteredVanillaPatterns = {
-    "^Safety:", -- Safety restore messages
-}
-
---- Check if a vanilla message should be filtered (not shown in chat)
----@param text string
----@return boolean
-local function shouldFilterVanillaMessage(text)
-    if not text then return true end
-    for _, pattern in ipairs(filteredVanillaPatterns) do
-        if text:match(pattern) then
-            return true
-        end
-    end
-    return false
-end
-
---- Hook into vanilla chat messages (yells, server messages, etc.)
---- This captures messages that bypass our custom chat system
-local function OnVanillaMessage(message, tabID)
-    local author = message:getAuthor()
-    local text = message:getText()
-    local textWithPrefix = message:getTextWithPrefix()
-    
-    if not text or text == "" then return end
-    
-    -- Debug: print the message details
-    print("[ChatSystem] Vanilla message - author: " .. tostring(author) .. ", text: " .. tostring(text) .. ", prefix: " .. tostring(textWithPrefix))
-    
-    -- Filter out unwanted server messages
-    if author == "Server" and shouldFilterVanillaMessage(text) then
-        print("[ChatSystem] Filtered vanilla message: " .. text)
-        return
-    end
-    
-    -- Determine channel based on message source
-    local channel = ChatSystem.ChannelType.LOCAL
-    local isSystem = false
-    local isYell = false
-    local color = nil
-    
-    if author == "Server" then
-        -- Server system messages (sandbox changes, etc.)
-        channel = ChatSystem.ChannelType.GLOBAL
-        isSystem = true
-        color = { r = 1, g = 0.9, b = 0.5 } -- Yellow-ish
-    else
-        -- Player messages (yells, says, etc.) - these are local chat
-        channel = ChatSystem.ChannelType.LOCAL
-        
-        -- Check if this is a yell by looking at the prefix text
-        -- Vanilla yell format usually contains [Shout] or similar, or text is uppercase
-        if textWithPrefix then
-            local lowerPrefix = textWithPrefix:lower()
-            if lowerPrefix:find("%[shout%]") or lowerPrefix:find("%[yell%]") then
-                isYell = true
-            end
-        end
-        
-        -- Also check if the text is all uppercase (common yell indicator)
-        if not isYell and text == text:upper() and #text > 0 and text:match("%a") then
-            isYell = true
-        end
-        
-        if isYell then
-            color = { r = 1, g = 0.3, b = 0.3 } -- Red for yells
-        end
-    end
-    
-    -- Create message for our custom chat
-    local msg
-    if isSystem then
-        msg = ChatSystem.CreateSystemMessage(text, channel)
-    else
-        msg = ChatSystem.CreateMessage(channel, author or "Unknown", text)
-    end
-    
-    if color then
-        msg.color = color
-    end
-    if isYell then
-        msg.metadata.isYell = true
-    end
-    msg.metadata.isVanilla = true
-    
-    -- Add to message history
-    table.insert(Client.messages, msg)
-    
-    -- Trim old messages
-    while #Client.messages > ChatSystem.Settings.maxMessagesStored do
-        table.remove(Client.messages, 1)
-    end
-    
-    -- Trigger event for UI update
-    ChatSystem.Events.OnMessageReceived:Trigger(msg)
-    
-    print("[ChatSystem] Client: Captured vanilla message from " .. tostring(author) .. ": " .. text)
-end
-
--- ==========================================================
 -- Channel Availability Events
 -- ==========================================================
 
@@ -1048,23 +831,12 @@ end
 -- Initialization
 -- ==========================================================
 
--- Throttle for typing indicator cleanup (check every ~1 second using tick count)
-local typingCleanupTickCounter = 0
-local TYPING_CLEANUP_INTERVAL = 60  -- Every 60 ticks (~1 second at 60 TPS)
-
-local function OnTick()
-    typingCleanupTickCounter = typingCleanupTickCounter + 1
-    if typingCleanupTickCounter >= TYPING_CLEANUP_INTERVAL then
-        typingCleanupTickCounter = 0
-        Client.CleanupTypingIndicators()
-    end
-end
-
 local function OnGameStart()
     Client.Connect()
     
-    -- Hook vanilla chat messages to capture yells, server announcements, etc.
-    Events.OnAddMessage.Add(OnVanillaMessage)
+    -- Initialize sub-modules
+    Client.InitTypingIndicators()
+    Client.InitVanillaHook()
     
     -- Register for KoniLib remote player events (deferred to ensure KoniLib is loaded)
     if KoniLib and KoniLib.Events then
@@ -1107,9 +879,6 @@ local function OnGameStart()
             end
         end
     end
-    
-    -- Register periodic cleanup for typing indicators (handles LOCAL range issues)
-    Events.OnTick.Add(OnTick)
     
     -- Register for vanilla faction/safehouse events
     Events.SyncFaction.Add(OnSyncFaction)

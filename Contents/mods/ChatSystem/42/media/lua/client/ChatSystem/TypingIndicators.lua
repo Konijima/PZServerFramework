@@ -1,0 +1,153 @@
+-- ChatSystem Typing Indicators Module
+-- Handles typing indicator display, cleanup, and network communication
+if isServer() then return end
+if not isClient() then return end
+
+require "ChatSystem/Definitions"
+
+-- Ensure Client exists (will be populated by Client.lua)
+ChatSystem.Client = ChatSystem.Client or {}
+local Client = ChatSystem.Client
+
+-- ==========================================================
+-- Configuration
+-- ==========================================================
+
+-- Typing indicator timeout (5 seconds) - indicators not refreshed within this time are cleared
+local TYPING_INDICATOR_TIMEOUT = 5000
+
+-- Throttle for typing indicator cleanup (check every ~1 second using tick count)
+local typingCleanupTickCounter = 0
+local TYPING_CLEANUP_INTERVAL = 60  -- Every 60 ticks (~1 second at 60 TPS)
+
+-- ==========================================================
+-- Typing Indicator Handlers
+-- ==========================================================
+
+--- Handle received typing indicator
+---@param data table { username, channel, isTyping, target }
+function Client.OnTypingReceived(data)
+    local channel = data.channel or ChatSystem.ChannelType.LOCAL
+    local username = data.username
+    local isTyping = data.isTyping
+    local target = data.target  -- For PM typing
+    
+    -- For PM typing, use the username as the key (who is typing to us)
+    local trackingKey = channel
+    if channel == ChatSystem.ChannelType.PRIVATE then
+        trackingKey = "pm:" .. username
+    end
+    
+    if not Client.typingPlayers[trackingKey] then
+        Client.typingPlayers[trackingKey] = {}
+    end
+    
+    if isTyping then
+        -- Store timestamp to allow timeout-based cleanup
+        Client.typingPlayers[trackingKey][username] = getTimestampMs()
+    else
+        Client.typingPlayers[trackingKey][username] = nil
+    end
+    
+    -- Trigger event for UI update
+    -- For PM, pass the username who is typing so UI can update the right conversation
+    ChatSystem.Events.OnTypingChanged:Trigger(channel, Client.GetTypingUsers(trackingKey), username)
+end
+
+--- Get list of users typing in a channel
+---@param channel string
+---@return table Array of usernames
+function Client.GetTypingUsers(channel)
+    local users = {}
+    if Client.typingPlayers[channel] then
+        for username, _ in pairs(Client.typingPlayers[channel]) do
+            table.insert(users, username)
+        end
+    end
+    return users
+end
+
+--- Clear typing indicator for a specific player (used when player dies/quits/goes out of range)
+---@param username string
+function Client.ClearTypingIndicator(username)
+    if not username then return end
+    
+    for channel, players in pairs(Client.typingPlayers) do
+        if players[username] then
+            players[username] = nil
+            -- Trigger UI update for this channel
+            ChatSystem.Events.OnTypingChanged:Trigger(channel, Client.GetTypingUsers(channel), username)
+        end
+    end
+end
+
+--- Cleanup stale typing indicators (called periodically)
+--- Removes typing indicators that haven't been refreshed within the timeout
+function Client.CleanupTypingIndicators()
+    local now = getTimestampMs()
+    
+    for channel, players in pairs(Client.typingPlayers) do
+        for username, timestamp in pairs(players) do
+            -- If timestamp is a number (new format), check for timeout
+            if type(timestamp) == "number" then
+                if now - timestamp > TYPING_INDICATOR_TIMEOUT then
+                    players[username] = nil
+                    ChatSystem.Events.OnTypingChanged:Trigger(channel, Client.GetTypingUsers(channel), username)
+                end
+            elseif timestamp == true then
+                -- Legacy format (boolean) - can't timeout, but will be cleaned up by quit/death events
+            end
+        end
+    end
+end
+
+--- Send typing start indicator
+---@param channel string
+---@param target string|nil Optional target for PM typing
+function Client.StartTyping(channel, target)
+    if not Client.isConnected then return end
+    
+    local now = getTimestampMs()
+    
+    -- Only send if not already typing in this channel, or if it's been a while
+    if not Client.isTyping or Client.typingChannel ~= channel or Client.typingTarget ~= target or (now - Client.lastTypingTime > 3000) then
+        Client.isTyping = true
+        Client.typingChannel = channel
+        Client.typingTarget = target
+        Client.lastTypingTime = now
+        
+        Client.socket:emit("typingStart", { channel = channel, target = target })
+    end
+end
+
+--- Send typing stop indicator
+function Client.StopTyping()
+    if not Client.isConnected then return end
+    
+    if Client.isTyping and Client.typingChannel then
+        Client.socket:emit("typingStop", { channel = Client.typingChannel, target = Client.typingTarget })
+        Client.isTyping = false
+        Client.typingChannel = nil
+        Client.typingTarget = nil
+    end
+end
+
+-- ==========================================================
+-- Periodic Cleanup
+-- ==========================================================
+
+local function OnTick()
+    typingCleanupTickCounter = typingCleanupTickCounter + 1
+    if typingCleanupTickCounter >= TYPING_CLEANUP_INTERVAL then
+        typingCleanupTickCounter = 0
+        Client.CleanupTypingIndicators()
+    end
+end
+
+--- Initialize typing indicators module
+function Client.InitTypingIndicators()
+    Events.OnTick.Add(OnTick)
+    print("[ChatSystem] TypingIndicators module initialized")
+end
+
+print("[ChatSystem] TypingIndicators module loaded")
