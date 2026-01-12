@@ -15,7 +15,7 @@ local Client = ChatSystem.Client
 
 -- List of vanilla server message patterns to filter out (not shown in custom chat)
 local filteredVanillaPatterns = {
-    "^Safety:", -- Safety restore messages
+    "^Safety:" -- Safety restore messages
 }
 
 --- Check if a vanilla message should be filtered (not shown in chat)

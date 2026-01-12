@@ -12,10 +12,10 @@ ChatSystem.Client = {}
 local Client = ChatSystem.Client
 
 -- Load sub-modules (they add functions to Client)
-require "ChatSystem/TypingIndicators"
-require "ChatSystem/VanillaHook"
-require "ChatSystem/Conversations"
-require "ChatSystem/ChannelManager"
+require "ChatSystem/SubModules/TypingIndicators"
+require "ChatSystem/SubModules/VanillaHook"
+require "ChatSystem/SubModules/Conversations"
+require "ChatSystem/SubModules/ChannelManager"
 
 -- Client state
 Client.socket = nil
