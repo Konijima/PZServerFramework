@@ -1,6 +1,7 @@
 if isServer() then return end
 if not KoniLib then KoniLib = {} end
 local MP = require("KoniLib/MP")
+local Log = KoniLib.Log
 
 -- Events are defined in shared/KoniLib/CustomEvents.lua and registered using KoniLib/Event.lua
 
@@ -16,11 +17,11 @@ local function onTickCheck()
         hasNetworkFired = true
         if KoniLib.Events and KoniLib.Events.OnNetworkAvailable then
              KoniLib.Events.OnNetworkAvailable:Trigger(0)
-             MP.Log("Triggered OnNetworkAvailable")
+             Log.Print("Events", "Triggered OnNetworkAvailable")
         else
             -- Fallback if something went wrong with loading
             triggerEvent("OnNetworkAvailable", 0)
-            MP.Log("Triggered OnNetworkAvailable (Fallback)")
+            Log.Print("Events", "Triggered OnNetworkAvailable (Fallback)")
         end
 
         -- Stop checking
@@ -43,11 +44,11 @@ local function onCreatePlayer(playerIndex, player)
         isRespawn = false
         
         local name = player and player:getUsername() or "Unknown"
-        MP.Log("Initial player creation detected (Join) for Player " .. tostring(playerIndex) .. " ("..name..")")
+        Log.Print("Events", "Initial player creation detected (Join) for Player " .. tostring(playerIndex) .. " ("..name..")")
     else
         -- We have seen this index before -> This must be a respawn
         isRespawn = true
-        MP.Log("Respawn detected for Player " .. tostring(playerIndex))
+        Log.Print("Events", "Respawn detected for Player " .. tostring(playerIndex))
     end
 
     if KoniLib.Events and KoniLib.Events.OnPlayerInit then
@@ -71,7 +72,7 @@ MP.Register("KoniLib", "PlayerInit", function(player, args)
         else
             triggerEvent("OnRemotePlayerInit", username, isRespawn)
         end
-        MP.Log("Remote player init: " .. username .. (isRespawn and " (Respawn)" or " (Join)"))
+        Log.Print("Events", "Remote player init: " .. username .. (isRespawn and " (Respawn)" or " (Join)"))
     end
 end)
 
@@ -87,7 +88,7 @@ MP.Register("KoniLib", "PlayerDeath", function(player, args)
     else
         triggerEvent("OnRemotePlayerDeath", username, x, y, z)
     end
-    MP.Log("Remote player death: " .. tostring(username))
+    Log.Print("Events", "Remote player death: " .. tostring(username))
 end)
 
 -- Handle Remote Player Quit
@@ -99,7 +100,7 @@ MP.Register("KoniLib", "PlayerQuit", function(player, args)
     else
         triggerEvent("OnRemotePlayerQuit", username)
     end
-    MP.Log("Remote player quit: " .. tostring(username))
+    Log.Print("Events", "Remote player quit: " .. tostring(username))
 end)
 
 -- ==========================================================

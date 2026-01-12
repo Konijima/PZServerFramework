@@ -2,12 +2,9 @@ KoniLib = KoniLib or {}
 KoniLib.MP = {}
 
 local MP = KoniLib.MP
-MP.Handlers = {}
-MP.Verbose = true -- Set to true for debugging
+local Log = KoniLib.Log
 
-function MP.Log(str)
-    if MP.Verbose then print("[KoniLib.MP] " .. tostring(str)) end
-end
+MP.Handlers = {}
 
 -- Call to register a handler for a command
 -- callback signature: function(player, args)
@@ -16,7 +13,7 @@ function MP.Register(module, command, callback)
         MP.Handlers[module] = {}
     end
     MP.Handlers[module][command] = callback
-    MP.Log("Registered handler: " .. module .. "." .. command)
+    Log.Print("MP", "Registered handler: " .. module .. "." .. command)
 end
 
 -- Call to send a command
@@ -66,7 +63,7 @@ function MP.Resolve(player, module, command, args)
         -- Wait, Events.OnServerCommand fires for specific module? No, it fires for all.
         -- We must check if it's OUR module before logging warning.
         if MP.Handlers[module] then 
-             MP.Log("Warning: Handler defined for module '"..module.."' but command '"..command.."' is missing.")
+             Log.Print("MP", "Warning: Handler defined for module '"..module.."' but command '"..command.."' is missing.")
         end
     end
 end

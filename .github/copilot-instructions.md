@@ -111,7 +111,8 @@ ChatSystem.Commands.Register({
 ## Code Style
 
 - Use `---@class`, `---@param`, `---@return` LuaDoc annotations
-- Prefix internal functions with module name: `Socket.Log()`, `MP.Resolve()`
+- Use `KoniLib.Log.Print(module, message)` for logging (modules: "MP", "Socket", "Events")
+- Prefix internal functions with module name: `MP.Resolve()`
 - Boolean settings default to `true` when enabling features
 
 ## Testing

@@ -51,15 +51,12 @@ Socket.EVENTS = {
     KICKED = "kicked",
 }
 
--- Verbose logging
-Socket.Verbose = true
+local Log = KoniLib.Log
 
 ---Log a message if verbose mode is enabled
 ---@param str string
 function Socket.Log(str)
-    if Socket.Verbose then
-        print("[KoniLib.Socket] " .. tostring(str))
-    end
+    Log.Print("Socket", str)
 end
 
 ---Generate a unique ID for acknowledgment tracking
