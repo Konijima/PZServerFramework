@@ -128,6 +128,9 @@ end
 -- Typing Indicators
 -- ==========================================================
 
+-- Typing indicator timeout (5 seconds) - indicators not refreshed within this time are cleared
+local TYPING_INDICATOR_TIMEOUT = 5000
+
 --- Handle received typing indicator
 ---@param data table { username, channel, isTyping, target }
 function Client.OnTypingReceived(data)
@@ -147,7 +150,8 @@ function Client.OnTypingReceived(data)
     end
     
     if isTyping then
-        Client.typingPlayers[trackingKey][username] = true
+        -- Store timestamp to allow timeout-based cleanup
+        Client.typingPlayers[trackingKey][username] = getTimestampMs()
     else
         Client.typingPlayers[trackingKey][username] = nil
     end
@@ -168,6 +172,42 @@ function Client.GetTypingUsers(channel)
         end
     end
     return users
+end
+
+--- Clear typing indicator for a specific player (used when player dies/quits/goes out of range)
+---@param username string
+function Client.ClearTypingIndicator(username)
+    if not username then return end
+    
+    local changed = false
+    for channel, players in pairs(Client.typingPlayers) do
+        if players[username] then
+            players[username] = nil
+            changed = true
+            -- Trigger UI update for this channel
+            ChatSystem.Events.OnTypingChanged:Trigger(channel, Client.GetTypingUsers(channel), username)
+        end
+    end
+end
+
+--- Cleanup stale typing indicators (called periodically)
+--- Removes typing indicators that haven't been refreshed within the timeout
+function Client.CleanupTypingIndicators()
+    local now = getTimestampMs()
+    
+    for channel, players in pairs(Client.typingPlayers) do
+        for username, timestamp in pairs(players) do
+            -- If timestamp is a number (new format), check for timeout
+            if type(timestamp) == "number" then
+                if now - timestamp > TYPING_INDICATOR_TIMEOUT then
+                    players[username] = nil
+                    ChatSystem.Events.OnTypingChanged:Trigger(channel, Client.GetTypingUsers(channel), username)
+                end
+            elseif timestamp == true then
+                -- Legacy format (boolean) - can't timeout, but will be cleaned up by quit/death events
+            end
+        end
+    end
 end
 
 --- Send typing start indicator
@@ -870,6 +910,9 @@ end
 local function OnRemotePlayerQuit(username)
     if not username then return end
     
+    -- Clear any typing indicators for this player
+    Client.ClearTypingIndicator(username)
+    
     local msg = ChatSystem.CreateSystemMessage(username .. " has left the server.", ChatSystem.ChannelType.GLOBAL)
     msg.color = { r = 0.6, g = 0.6, b = 0.6 } -- Gray
     
@@ -890,6 +933,9 @@ end
 local function OnRemotePlayerDeath(username, x, y, z)
     if not username then return end
     
+    -- Clear any typing indicators for this player
+    Client.ClearTypingIndicator(username)
+    
     local msg = ChatSystem.CreateSystemMessage(username .. " has died.", ChatSystem.ChannelType.GLOBAL)
     msg.color = { r = 1, g = 0.3, b = 0.3 } -- Red
     
@@ -906,6 +952,18 @@ end
 -- ==========================================================
 -- Initialization
 -- ==========================================================
+
+-- Throttle for typing indicator cleanup (check every ~1 second using tick count)
+local typingCleanupTickCounter = 0
+local TYPING_CLEANUP_INTERVAL = 60  -- Every 60 ticks (~1 second at 60 TPS)
+
+local function OnTick()
+    typingCleanupTickCounter = typingCleanupTickCounter + 1
+    if typingCleanupTickCounter >= TYPING_CLEANUP_INTERVAL then
+        typingCleanupTickCounter = 0
+        Client.CleanupTypingIndicators()
+    end
+end
 
 local function OnGameStart()
     Client.Connect()
@@ -937,6 +995,9 @@ local function OnGameStart()
     
     -- Initialize channel tracking
     Client.lastAvailableChannels = Client.GetAvailableChannels()
+    
+    -- Register periodic cleanup for typing indicators (handles LOCAL range issues)
+    Events.OnTick.Add(OnTick)
 end
 
 Events.OnGameStart.Add(OnGameStart)

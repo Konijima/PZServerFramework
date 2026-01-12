@@ -764,7 +764,24 @@ local function OnPlayerQuit(username)
     playerData[username] = nil
 end
 
+-- Player death handler - broadcast stop typing for all channels they were typing in
+local function OnPlayerDeath(player)
+    if not player then return end
+    local username = player:getUsername()
+    if not username then return end
+    
+    -- Find all channels where this player was typing and broadcast stop
+    for channel, players in pairs(typingPlayers) do
+        if players[username] then
+            players[username] = nil
+            -- Broadcast stop typing to appropriate recipients
+            Server.BroadcastTypingIndicator(player, channel, false)
+        end
+    end
+end
+
 -- Use KoniLib events for cleanup
 KoniLib.Events.OnPlayerQuit:Add(OnPlayerQuit)
+Events.OnPlayerDeath.Add(OnPlayerDeath)
 
 print("[ChatSystem] Server Loaded")
