@@ -365,12 +365,7 @@ Commands.Register({
             z = tonumber(z) or context.player:getZ()
             
             if x and y then
-                context.player:setLx(x)
-                context.player:setLy(y)
-                context.player:setLz(z)
-                context.player:setX(x)
-                context.player:setY(y)
-                context.player:setZ(z)
+                context.player:teleportTo(x, y, z)
                 Server.ReplySuccess(context.player, "Teleported to " .. x .. ", " .. y .. ", " .. z, context.channel)
                 return
             end
@@ -383,13 +378,7 @@ Commands.Register({
             return
         end
         
-        local tx, ty, tz = target:getX(), target:getY(), target:getZ()
-        context.player:setLx(tx)
-        context.player:setLy(ty)
-        context.player:setLz(tz)
-        context.player:setX(tx)
-        context.player:setY(ty)
-        context.player:setZ(tz)
+        context.player:teleportTo(target:getX(), target:getY(), target:getZ())
         
         Server.ReplySuccess(context.player, "Teleported to " .. target:getUsername(), context.channel)
     end
@@ -420,13 +409,7 @@ Commands.Register({
             return
         end
         
-        local x, y, z = context.player:getX(), context.player:getY(), context.player:getZ()
-        target:setLx(x)
-        target:setLy(y)
-        target:setLz(z)
-        target:setX(x)
-        target:setY(y)
-        target:setZ(z)
+        target:teleportTo(context.player:getX(), context.player:getY(), context.player:getZ())
         
         Server.ReplySuccess(context.player, "Teleported " .. targetName .. " to you", context.channel)
         -- Notify target in LOCAL so they always see it regardless of their active channel
