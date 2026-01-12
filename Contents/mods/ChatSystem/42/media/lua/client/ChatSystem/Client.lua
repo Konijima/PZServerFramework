@@ -875,8 +875,41 @@ function Client.RefreshAvailableChannels()
     end
 end
 
+--- Handle faction sync event (triggered when faction membership changes)
+---@param factionName string The name of the faction that was synced
+local function OnSyncFaction(factionName)
+    -- Check if this affects our player
+    Client.CheckFactionSafehouseChanges()
+end
+
+--- Handle safehouse changes event
+local function OnSafehousesChanged()
+    -- Check if this affects our player
+    Client.CheckFactionSafehouseChanges()
+end
+
+--- Handle accepted faction invite
+local function OnAcceptedFactionInvite(factionName, playerName)
+    -- If we accepted, refresh channels
+    local player = getPlayer()
+    if player and player:getUsername() == playerName then
+        print("[ChatSystem] Client: Accepted faction invite to " .. tostring(factionName))
+        Client.CheckFactionSafehouseChanges()
+    end
+end
+
+--- Handle accepted safehouse invite
+local function OnAcceptedSafehouseInvite(safehouse, playerName)
+    -- If we accepted, refresh channels
+    local player = getPlayer()
+    if player and player:getUsername() == playerName then
+        print("[ChatSystem] Client: Accepted safehouse invite")
+        Client.CheckFactionSafehouseChanges()
+    end
+end
+
 --- Check for faction/safehouse membership changes
---- Called periodically to detect when player joins/leaves faction or safehouse
+--- Updates tracking state and refreshes channels if changed
 function Client.CheckFactionSafehouseChanges()
     local player = getPlayer()
     if not player then return end
@@ -1076,8 +1109,12 @@ local function OnGameStart()
     -- Register periodic cleanup for typing indicators (handles LOCAL range issues)
     Events.OnTick.Add(OnTick)
     
-    -- Register periodic check for faction/safehouse changes
-    Events.EveryOneMinute.Add(Client.CheckFactionSafehouseChanges)
+    -- Register for vanilla faction/safehouse events
+    Events.SyncFaction.Add(OnSyncFaction)
+    Events.OnSafehousesChanged.Add(OnSafehousesChanged)
+    Events.AcceptedFactionInvite.Add(OnAcceptedFactionInvite)
+    Events.AcceptedSafehouseInvite.Add(OnAcceptedSafehouseInvite)
+    print("[ChatSystem] Client: Registered faction/safehouse event handlers")
 end
 
 Events.OnGameStart.Add(OnGameStart)
