@@ -125,6 +125,14 @@ chatSocket:onServer("message", function(player, data, context, ack)
     local text = data.text
     local metadata = data.metadata or {}
     
+    -- Add player's access level/role to metadata
+    local accessLevel = player:getAccessLevel()
+    if accessLevel and accessLevel ~= "" then
+        metadata.role = accessLevel
+    else
+        metadata.role = "player"
+    end
+    
     print("[ChatSystem] Server: Received message from " .. username .. " - channel: " .. tostring(channel) .. ", text: " .. tostring(text))
     
     -- Check if this is a command (starts with /)

@@ -1,0 +1,8 @@
+name=ReactiveUI
+id=ReactiveUI
+description=A reactive UI framework for Project Zomboid. Simplifies UI creation with declarative syntax, automatic state management, and component composition while maintaining full fidelity with PZ's native UI look and feel.
+poster=poster.png
+icon=icon.png
+author=Konijima
+modversion=1.0.0
+require=\KoniLib

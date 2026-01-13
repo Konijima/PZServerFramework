@@ -263,6 +263,18 @@ local target, err = ChatSystem.Commands.Server.FindPlayer("john")
 4. Add commands to `ChatSystem.ChannelCommands`
 5. Handle the channel in `Server.lua`
 
+### Author Role Colors
+
+Player usernames in chat are automatically colored based on their role:
+
+| Role | Color | Description |
+|------|-------|-------------|
+| Owner/Admin | Red `<RGB:1,0.3,0.3>` | Server administrators |
+| Moderator | Cyan `<RGB:0.3,1,1>` | Moderators, overseers, GMs, observers |
+| Player | White `<RGB:1,1,1>` | Regular players |
+
+Message text is always white regardless of channel. Timestamps appear in gray.
+
 ### Custom Message Colors
 
 ```lua
