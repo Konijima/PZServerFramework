@@ -1,6 +1,6 @@
 # PZServerFramework
 
-A collection of Project Zomboid Mods and Frameworks designed for server management, custom chat, and shared library utilities.
+A collection of Project Zomboid Mods and Frameworks designed for server management, custom chat, reactive UI, and shared library utilities.
 
 ## Documentation
 
@@ -11,6 +11,7 @@ Full API documentation is available in the [docs/](docs/) folder:
 - [KoniLib API Reference](docs/KoniLib/API.md) - Main API reference
 - [Socket API](docs/KoniLib/SocketAPI.md) - Socket.io-like networking system
 - [Events API](docs/KoniLib/EventsAPI.md) - Custom lifecycle events
+- [ReactiveUI Documentation](docs/ReactiveUI/README.md) - Reactive UI framework
 
 ## Contents
 
@@ -25,7 +26,18 @@ A shared library mod serving as the foundation for other mods in this suite.
 
 See [KoniLib Documentation](docs/KoniLib/README.md) for detailed usage.
 
-### 2. ChatSystem
+### 2. ReactiveUI
+A reactive UI framework for Project Zomboid that simplifies UI creation while maintaining full fidelity with PZ's native look and feel.
+
+*   **Declarative Syntax:** Describe your UI structure, not imperative construction.
+*   **Reactive State:** State changes automatically update the UI.
+*   **Component System:** Build reusable, encapsulated UI components.
+*   **Layout Helpers:** Easy vertical/horizontal stacks, grids, and flow layouts.
+*   **Full PZ Fidelity:** Uses native ISUI elements - looks exactly like vanilla.
+
+See [ReactiveUI Documentation](docs/ReactiveUI/README.md) for detailed usage.
+
+### 3. ChatSystem
 A custom chat implementation replacing vanilla chat with a modern, Socket.io-based system.
 
 *   **Multiple Channels:** Local, Global, Faction, Safehouse, Private, Staff, Admin, and Radio.
@@ -35,7 +47,7 @@ A custom chat implementation replacing vanilla chat with a modern, Socket.io-bas
 
 See [ChatSystem Documentation](docs/ChatSystem/README.md) for detailed usage.
 
-### 3. AreaSystem
+### 4. AreaSystem
 An admin tool and system for creating, managing, and visualizing custom areas within the game world.
 
 *   **UI Tools:** In-game editors for Areas and Shapes (Rectangles, etc.).
@@ -48,7 +60,7 @@ See [AreaSystem Documentation](docs/AreaSystem/README.md) for usage guide.
 ## Installation
 
 1.  Copy the `Contents/mods/` folders into your Project Zomboid `mods` directory (or Workshop content folder).
-2.  Ensure `KoniLib` is enabled whenever using `ChatSystem`, `AreaSystem`, or other dependent mods.
+2.  Ensure `KoniLib` is enabled whenever using `ChatSystem`, `AreaSystem`, `ReactiveUI`, or other dependent mods.
 
 ## License
 
