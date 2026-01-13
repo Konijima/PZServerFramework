@@ -193,8 +193,10 @@ function Module.RoutePrivateMessage(player, message, username, metadata)
             -- Send copy back to sender
             Server.chatSocket:to(player):emit("message", message)
         else
-            -- Player not found
-            local errorMsg = ChatSystem.CreateSystemMessage("Player '" .. targetUsername .. "' not found.")
+            -- Player not found - send error to PM conversation context
+            local errorMsg = ChatSystem.CreateSystemMessage(targetUsername .. " is not available.", ChatSystem.ChannelType.PRIVATE)
+            errorMsg.metadata = { from = targetUsername, to = username }
+            errorMsg.color = { r = 1, g = 0.6, b = 0.3 } -- Orange
             Server.chatSocket:to(player):emit("message", errorMsg)
         end
     end

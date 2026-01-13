@@ -335,6 +335,26 @@ local function OnRemotePlayerQuit(username)
     
     -- Refresh online players list
     Client.RefreshPlayers()
+    
+    -- If we have a conversation with this player, add a notification message
+    if Client.conversations[username] then
+        local pmNotification = ChatSystem.CreateSystemMessage(username .. " is no longer available.", ChatSystem.ChannelType.PRIVATE)
+        pmNotification.color = { r = 1, g = 0.6, b = 0.3 } -- Orange
+        pmNotification.metadata = { from = username, to = getPlayer():getUsername() }
+        
+        -- Add to conversation
+        table.insert(Client.conversations[username].messages, pmNotification)
+        
+        -- Trim old messages
+        while #Client.conversations[username].messages > ChatSystem.Settings.maxMessagesStored do
+            table.remove(Client.conversations[username].messages, 1)
+        end
+        
+        -- Trigger UI rebuild if viewing this conversation
+        if Client.activeConversation == username then
+            ChatSystem.Events.OnMessageReceived:Trigger(pmNotification)
+        end
+    end
 end
 
 --- Handle remote player death

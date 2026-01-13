@@ -43,6 +43,17 @@ function Messages.create(window)
     panel.clip = true
     panel.marginTop = 5
     panel.marginBottom = 5
+    panel._needsScrollToBottom = false
+    
+    -- Hook prerender to scroll to bottom after pagination is computed
+    local origPrerender = panel.prerender
+    panel.prerender = function(self)
+        if origPrerender then origPrerender(self) end
+        if self._needsScrollToBottom and self.vscroll then
+            self.vscroll:setCurrentValue(self.vscroll.maxValue or 0)
+            self._needsScrollToBottom = false
+        end
+    end
     
     -- When clicking on messages panel, schedule input re-focus
     local origMouseDown = panel.onMouseDown
@@ -106,9 +117,8 @@ function Messages.rebuild(panel)
     panel:setText(text)
     panel:paginate()
     
-    if panel.vscroll then
-        panel.vscroll:setCurrentValue(panel.vscroll.maxValue or 0)
-    end
+    -- Schedule scroll to bottom for next prerender (after pagination is computed)
+    panel._needsScrollToBottom = true
 end
 
 function Messages.formatMessage(msg, showTimestamp)
@@ -215,13 +225,19 @@ function ChatUI.Messages.add(message)
         if activeConv ~= otherPerson then
             -- Not viewing this conversation, mark as unread
             local pmKey = "pm:" .. otherPerson
-            local unread = ChatUI.State:get("unreadMessages") or {}
+            -- Create new table to ensure state change is detected
+            local oldUnread = ChatUI.State:get("unreadMessages") or {}
+            local unread = {}
+            for k, v in pairs(oldUnread) do unread[k] = v end
             unread[pmKey] = (unread[pmKey] or 0) + 1
             ChatUI.State:set("unreadMessages", unread)
         end
     elseif message.channel ~= currentChannel or activeConv then
         -- Not on this channel tab (or we're in a PM conversation)
-        local unread = ChatUI.State:get("unreadMessages") or {}
+        -- Create new table to ensure state change is detected
+        local oldUnread = ChatUI.State:get("unreadMessages") or {}
+        local unread = {}
+        for k, v in pairs(oldUnread) do unread[k] = v end
         unread[message.channel] = (unread[message.channel] or 0) + 1
         ChatUI.State:set("unreadMessages", unread)
     end

@@ -352,7 +352,10 @@ function Tabs._onTabClick(channel, username)
     ChatSystem.Client.DeactivateConversation()
     ChatSystem.Client.SetChannel(channel)
     
-    local unread = ChatUI.State:get("unreadMessages") or {}
+    -- Create new table to ensure state change is detected
+    local oldUnread = ChatUI.State:get("unreadMessages") or {}
+    local unread = {}
+    for k, v in pairs(oldUnread) do unread[k] = v end
     unread[channel] = 0
     ChatUI.State:set("unreadMessages", unread)
     
@@ -364,7 +367,10 @@ function Tabs._onPmTabClick(channel, username)
     
     ChatSystem.Client.OpenConversation(username)
     
-    local unread = ChatUI.State:get("unreadMessages") or {}
+    -- Create new table to ensure state change is detected
+    local oldUnread = ChatUI.State:get("unreadMessages") or {}
+    local unread = {}
+    for k, v in pairs(oldUnread) do unread[k] = v end
     unread["pm:" .. username] = 0
     ChatUI.State:set("unreadMessages", unread)
     
