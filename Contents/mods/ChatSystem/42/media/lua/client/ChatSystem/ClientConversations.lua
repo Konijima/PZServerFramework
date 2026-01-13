@@ -193,6 +193,17 @@ function Module.OpenConversation(username)
     local Client = ChatSystem.Client
     if not username or username == "" then return end
     
+    -- Handle typing state transition if we were typing in a different context
+    if Client.isTyping then
+        -- Stop typing in previous channel/conversation
+        Client.socket:emit("typing", { channel = Client.typingChannel, target = Client.typingTarget, isTyping = false })
+        -- Start typing in new PM conversation
+        Client.typingChannel = ChatSystem.ChannelType.PRIVATE
+        Client.typingTarget = username
+        Client.lastTypingTime = getTimestampMs()
+        Client.socket:emit("typing", { channel = ChatSystem.ChannelType.PRIVATE, target = username, isTyping = true })
+    end
+    
     -- Create conversation if it doesn't exist
     if not Client.conversations[username] then
         Client.conversations[username] = { messages = {}, unread = 0 }
@@ -214,6 +225,17 @@ function Module.CloseConversation(username)
     
     -- If closing the active conversation, switch to local
     if Client.activeConversation == username then
+        -- Handle typing state transition if we were typing in this PM
+        if Client.isTyping and Client.typingChannel == ChatSystem.ChannelType.PRIVATE and Client.typingTarget == username then
+            -- Stop typing in PM
+            Client.socket:emit("typing", { channel = Client.typingChannel, target = Client.typingTarget, isTyping = false })
+            -- Start typing in local channel
+            Client.typingChannel = ChatSystem.ChannelType.LOCAL
+            Client.typingTarget = nil
+            Client.lastTypingTime = getTimestampMs()
+            Client.socket:emit("typing", { channel = ChatSystem.ChannelType.LOCAL, target = nil, isTyping = true })
+        end
+        
         Client.activeConversation = nil
         Client.currentChannel = ChatSystem.ChannelType.LOCAL
         ChatSystem.Events.OnChannelChanged:Trigger(ChatSystem.ChannelType.LOCAL)
@@ -242,7 +264,20 @@ end
 
 --- Deactivate conversation (switch back to normal channel)
 function Module.DeactivateConversation()
-    ChatSystem.Client.activeConversation = nil
+    local Client = ChatSystem.Client
+    
+    -- Handle typing state transition if we were typing in a PM
+    if Client.isTyping and Client.typingChannel == ChatSystem.ChannelType.PRIVATE then
+        -- Stop typing in PM
+        Client.socket:emit("typing", { channel = Client.typingChannel, target = Client.typingTarget, isTyping = false })
+        -- Start typing in current channel
+        Client.typingChannel = Client.currentChannel
+        Client.typingTarget = nil
+        Client.lastTypingTime = getTimestampMs()
+        Client.socket:emit("typing", { channel = Client.currentChannel, target = nil, isTyping = true })
+    end
+    
+    Client.activeConversation = nil
 end
 
 print("[ChatSystem] Conversations module loaded")

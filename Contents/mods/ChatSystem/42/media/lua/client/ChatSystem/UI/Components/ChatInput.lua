@@ -84,11 +84,30 @@ function Input._onSubmit(entry)
     if #history > 50 then table.remove(history, 1) end
     ChatUI.State:setMany({ commandHistory = history, historyIndex = 0 })
     
+    -- Stop typing indicator
+    if ChatSystem.Client and ChatSystem.Client.StopTyping then
+        ChatSystem.Client.StopTyping()
+    end
+    
     local activeConv = ChatSystem.Client and ChatSystem.Client.activeConversation
     if activeConv then
-        ChatSystem.Client.SendPrivateMessage(activeConv, text)
+        -- Send as PM (SendMessageDirect handles activeConversation automatically)
+        ChatSystem.Client.SendMessageDirect(text)
     else
-        ChatSystem.Client.SendMessage(text)
+        -- Check if user typed a channel command (e.g., /l, /g)
+        -- If so, switch channel and extract the message
+        local detectedChannel, cleanText = ChatSystem.Client.DetectChannelPrefix(text)
+        if detectedChannel then
+            -- Switch to that channel
+            ChatSystem.Client.SetChannel(detectedChannel)
+            text = cleanText
+        end
+        
+        -- Only send if there's actual message content
+        if text and text ~= "" and text ~= " " then
+            -- Send message using current channel (no prefix needed)
+            ChatSystem.Client.SendMessageDirect(text)
+        end
     end
     
     entry:setText("")

@@ -29,6 +29,18 @@ function Module.SetChannel(channel)
     local Client = ChatSystem.Client
     -- Only allow setting to available channels
     if ChatSystem.ChannelColors[channel] and Module.IsChannelAvailable(channel) then
+        local oldChannel = Client.currentChannel
+        
+        -- Handle typing state transition if we were typing in a different channel
+        if Client.isTyping and oldChannel ~= channel then
+            -- Stop typing in old channel
+            Client.socket:emit("typing", { channel = oldChannel, target = Client.typingTarget, isTyping = false })
+            -- Start typing in new channel
+            Client.typingChannel = channel
+            Client.lastTypingTime = getTimestampMs()
+            Client.socket:emit("typing", { channel = channel, target = Client.typingTarget, isTyping = true })
+        end
+        
         Client.currentChannel = channel
         ChatSystem.Events.OnChannelChanged:Trigger(channel)
     end

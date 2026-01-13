@@ -3,44 +3,12 @@ if not KoniLib then KoniLib = {} end
 local Log = require("KoniLib/Log")
 local MP = require("KoniLib/MP")
 
+print("[KoniLib] CustomEventsServer loading...")
+
 -- Events are defined in shared/KoniLib/CustomEvents.lua and registered using KoniLib/Event.lua
 
-local initializedPlayers = {}
-
----Logic to trigger OnPlayerRespawn on Server
--- On Server, OnCreatePlayer passes (playerID, playerObj) or just playerObj depending on legacy.
--- Actually standard Event OnCreatePlayer usually passes (id, player).
-local function onCreatePlayerServer(playerIndex, player)
-    -- On Server we track by username because player index/ID might recycle or be less reliable across sessions, 
-    -- but for the session lifetime 'player' object reference or username is safer.
-    
-    if not player then return end
-    local username = player:getUsername()
-    
-    local isRespawn = false
-    if not initializedPlayers[username] then
-        -- First creation in this session (Join)
-        initializedPlayers[username] = true
-        isRespawn = false
-        Log.Print("Events", "Initial player creation detected (Join) for " .. tostring(username))
-    else
-        -- Creating player again in same session -> Respawn
-        isRespawn = true
-        Log.Print("Events", "Respawn detected for " .. tostring(username))
-    end
-
-    if KoniLib.Events and KoniLib.Events.OnPlayerInit then
-        KoniLib.Events.OnPlayerInit:Trigger(playerIndex, player, isRespawn)
-    else
-        triggerEvent("OnPlayerInit", playerIndex, player, isRespawn)
-    end
-    
-    -- Notify all clients about this player initialization
-    MP.Send(nil, "KoniLib", "PlayerInit", { username = username, isRespawn = isRespawn })
-end
-
--- OnNetworkAvailable doesn't really apply to Server (it's the host), so we only handle Respawn.
-Events.OnCreatePlayer.Add(onCreatePlayerServer)
+-- Track players who have joined this session (for respawn detection)
+local sessionPlayers = {}
 
 -- Handle Player Death
 local function onPlayerDeath(player)
@@ -59,35 +27,50 @@ local function onPlayerDeath(player)
 end
 Events.OnPlayerDeath.Add(onPlayerDeath)
 
--- Handle Player Quit (Polling)
+-- Handle Player Join/Quit (Polling)
 local onlinePlayers = {}
-local quitCheckTicker = 0
+local playerCheckTicker = 0
 
-local function checkQuitters()
-    quitCheckTicker = quitCheckTicker + 1
-    if quitCheckTicker < 15 then return end -- Check every ~15 ticks (approx 0.25-0.5s ? depends on tick rate, usually 60TPS)
-    quitCheckTicker = 0
+local function checkPlayerChanges()
+    playerCheckTicker = playerCheckTicker + 1
+    if playerCheckTicker < 15 then return end -- Check every ~15 ticks
+    playerCheckTicker = 0
 
     local currentOnline = {}
     local players = getOnlinePlayers()
     
     if players then
-        for i=0, players:size()-1 do
-             local p = players:get(i)
-             if p then
-                currentOnline[p:getUsername()] = true
-                -- Ensure we track them if we missed the storage
-                if not onlinePlayers[p:getUsername()] then
-                    onlinePlayers[p:getUsername()] = true
+        for i = 0, players:size() - 1 do
+            local p = players:get(i)
+            if p then
+                local username = p:getUsername()
+                currentOnline[username] = p
+                
+                -- Check if this is a new player (joined)
+                if not onlinePlayers[username] then
+                    local isRespawn = sessionPlayers[username] == true
+                    sessionPlayers[username] = true
+                    
+                    Log.Print("Events", "Player " .. (isRespawn and "Respawn" or "Join") .. " detected: " .. tostring(username))
+                    
+                    -- Trigger Server-side Event
+                    if KoniLib.Events and KoniLib.Events.OnPlayerInit then
+                        KoniLib.Events.OnPlayerInit:Trigger(0, p, isRespawn)
+                    else
+                        triggerEvent("OnPlayerInit", 0, p, isRespawn)
+                    end
+                    
+                    -- Broadcast to all clients
+                    MP.Send(nil, "KoniLib", "PlayerInit", { username = username, isRespawn = isRespawn })
                 end
-             end
+            end
         end
     end
 
+    -- Check for players who quit
     for username, _ in pairs(onlinePlayers) do
         if not currentOnline[username] then
-            -- They are gone
-            onlinePlayers[username] = nil
+            Log.Print("Events", "Player Quit detected: " .. tostring(username))
             
             -- Trigger Server-side Event
             if KoniLib.Events and KoniLib.Events.OnPlayerQuit then
@@ -96,11 +79,17 @@ local function checkQuitters()
                 triggerEvent("OnPlayerQuit", username)
             end
             
-            Log.Print("Events", "Player Quit detected: " .. tostring(username))
-            
             -- Broadcast to all clients
             MP.Send(nil, "KoniLib", "PlayerQuit", { username = username })
         end
     end
+    
+    -- Update tracked players (store just true, not the player object)
+    onlinePlayers = {}
+    for username, _ in pairs(currentOnline) do
+        onlinePlayers[username] = true
+    end
 end
-Events.OnTick.Add(checkQuitters)
+Events.OnTick.Add(checkPlayerChanges)
+
+print("[KoniLib] CustomEventsServer loaded - Player polling active")

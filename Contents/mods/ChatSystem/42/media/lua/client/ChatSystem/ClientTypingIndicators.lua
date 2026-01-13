@@ -103,11 +103,21 @@ function Module.CleanupTypingIndicators()
 end
 
 --- Send typing start indicator
----@param channel string
+---@param channel string|nil Channel to type in (defaults to current channel or active conversation)
 ---@param target string|nil Optional target for PM typing
 function Module.StartTyping(channel, target)
     local Client = ChatSystem.Client
     if not Client.isConnected then return end
+    
+    -- Default to active conversation (PM) or current channel
+    if not channel then
+        if Client.activeConversation then
+            channel = ChatSystem.ChannelType.PRIVATE
+            target = Client.activeConversation
+        else
+            channel = Client.currentChannel
+        end
+    end
     
     local now = getTimestampMs()
     
@@ -118,7 +128,7 @@ function Module.StartTyping(channel, target)
         Client.typingTarget = target
         Client.lastTypingTime = now
         
-        Client.socket:emit("typingStart", { channel = channel, target = target })
+        Client.socket:emit("typing", { channel = channel, target = target, isTyping = true })
     end
 end
 
@@ -128,7 +138,7 @@ function Module.StopTyping()
     if not Client.isConnected then return end
     
     if Client.isTyping and Client.typingChannel then
-        Client.socket:emit("typingStop", { channel = Client.typingChannel, target = Client.typingTarget })
+        Client.socket:emit("typing", { channel = Client.typingChannel, target = Client.typingTarget, isTyping = false })
         Client.isTyping = false
         Client.typingChannel = nil
         Client.typingTarget = nil
