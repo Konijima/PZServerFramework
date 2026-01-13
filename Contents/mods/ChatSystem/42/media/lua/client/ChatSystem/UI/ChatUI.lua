@@ -121,6 +121,12 @@ function ChatUI.Create()
     
     ChatUI.instance:addToUIManager()
     
+    -- Apply locked state to the window after creation
+    local isLocked = ChatUI.State:get("locked")
+    if isLocked then
+        ChatUI.instance:setResizable(false)
+    end
+    
     -- Track window position/size changes for saving
     local origOnResize = ChatUI.instance.onResize
     ChatUI.instance.onResize = function(self)

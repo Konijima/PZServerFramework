@@ -64,6 +64,12 @@ function ChatWindow.create(props)
         end
     end)
     
+    -- Apply initial lock state (settings loaded before window created)
+    local initialLocked = ChatUI.State:get("locked")
+    if initialLocked then
+        ChatWindow._updateLockState(true)
+    end
+    
     return _window
 end
 
