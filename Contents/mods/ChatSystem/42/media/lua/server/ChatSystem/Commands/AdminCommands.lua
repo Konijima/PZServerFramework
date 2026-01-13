@@ -1,7 +1,6 @@
 -- Admin Commands: kick, announce, teleport, bring, god, invisible
 -- Requires MODERATOR or ADMIN access level
-if isClient() then return end
-if not isServer() then return end
+if isClient() or not isServer() then return end
 
 require "ChatSystem/CommandAPI"
 

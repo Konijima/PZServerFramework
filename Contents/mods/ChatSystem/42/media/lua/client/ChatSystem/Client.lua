@@ -1,5 +1,4 @@
 -- ChatSystem is multiplayer only
-if isServer() then return end
 if not isClient() then 
     print("[ChatSystem] Client: Skipping - singleplayer mode")
     return 

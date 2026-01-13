@@ -1,7 +1,6 @@
 -- General Commands: help, online, roll, me
 -- Available to all players
-if isClient() then return end
-if not isServer() then return end
+if isClient() or not isServer() then return end
 
 require "ChatSystem/CommandAPI"
 

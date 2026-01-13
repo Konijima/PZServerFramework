@@ -1,7 +1,6 @@
 -- Server Commands: servermsg
 -- Requires OWNER access level
-if isClient() then return end
-if not isServer() then return end
+if isClient() or not isServer() then return end
 
 require "ChatSystem/CommandAPI"
 
