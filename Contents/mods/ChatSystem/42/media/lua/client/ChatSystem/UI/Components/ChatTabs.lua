@@ -132,27 +132,36 @@ local function showPlayerMenu(props)
     local player = getPlayer()
     if player and player:isDead() then return end
     
-    ChatSystem.Client.RefreshPlayers()
-    
     local parentWindow = props.parentWindow
     local x = parentWindow and (parentWindow:getAbsoluteX() + props.panelX) or 0
     local y = parentWindow and (parentWindow:getAbsoluteY() + props.panelY + props.panelHeight) or 0
-    
-    local context = ISContextMenu.get(0, x, y)
     local myUsername = player and player:getUsername() or ""
     
-    local onlinePlayers = ChatSystem.Client.GetOnlinePlayers()
-    if onlinePlayers then
-        for _, p in ipairs(onlinePlayers) do
-            if p.username and p.username ~= myUsername then
-                context:addOption(p.username, nil, function()
-                    ChatSystem.Client.OpenConversation(p.username)
-                    ChatUI.Components.ChatTabs.refresh()
-                    ChatUI.Messages.rebuild()
-                end)
+    -- Refresh and show menu in callback to ensure player list is up to date
+    ChatSystem.Client.RefreshPlayersWithCallback(function(onlinePlayers)
+        local context = ISContextMenu.get(0, x, y)
+        local hasPlayers = false
+        
+        if onlinePlayers then
+            for _, p in ipairs(onlinePlayers) do
+                if p.username and p.username ~= myUsername then
+                    hasPlayers = true
+                    context:addOption(p.username, nil, function()
+                        ChatSystem.Client.OpenConversation(p.username)
+                        ChatUI.Components.ChatTabs.refresh()
+                        ChatUI.Messages.rebuild()
+                    end)
+                end
             end
         end
-    end
+        
+        if not hasPlayers then
+            local option = context:addOption("No other players online", nil, nil)
+            option.notAvailable = true
+        end
+        
+        context:setVisible(true)
+    end)
 end
 
 local NewPmButton = ReactiveUI.Component.define({

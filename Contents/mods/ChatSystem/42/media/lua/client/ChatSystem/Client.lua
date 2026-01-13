@@ -235,6 +235,24 @@ function Client.RefreshPlayers()
     end)
 end
 
+--- Refresh online players list with callback
+---@param callback function Called with the player list when received
+function Client.RefreshPlayersWithCallback(callback)
+    if not Client.isConnected then
+        if callback then callback(nil) end
+        return
+    end
+    
+    Client.socket:emit("getPlayers", {}, function(response)
+        if response and response.players then
+            Client.onlinePlayers = response.players
+            if callback then callback(response.players) end
+        else
+            if callback then callback(nil) end
+        end
+    end)
+end
+
 -- ==========================================================
 -- Message Filtering
 -- ==========================================================
