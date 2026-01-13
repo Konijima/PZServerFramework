@@ -1,19 +1,10 @@
--- ChatSystem Typing Indicators (Server)
+-- ChatSystem Typing Indicators Module (Server)
 -- Handles typing indicator events and broadcasts
-if isClient() then return end
-if not isServer() then return end
+-- Returns a module table to be merged into ChatSystem.Server
 
 require "ChatSystem/Definitions"
-require "ChatSystem/SubModules/Helpers"
 
-local Server = ChatSystem.Server
-
--- ==========================================================
--- State
--- ==========================================================
-
--- Store who is typing in which channel
-Server.typingPlayers = Server.typingPlayers or {} -- { [channel] = { [username] = timestamp } }
+local Module = {}
 
 -- ==========================================================
 -- Typing Indicator Broadcasting
@@ -24,17 +15,18 @@ Server.typingPlayers = Server.typingPlayers or {} -- { [channel] = { [username] 
 ---@param channel string
 ---@param isTyping boolean
 ---@param target string|nil Optional target for PM typing
-function Server.BroadcastTypingIndicator(player, channel, isTyping, target)
+function Module.BroadcastTypingIndicator(player, channel, isTyping, target)
+    local Server = ChatSystem.Server
     local username = player:getUsername()
     local data = { username = username, channel = channel, isTyping = isTyping, target = target }
-    
+
     if channel == ChatSystem.ChannelType.PRIVATE and target then
         -- PM typing: only send to the specific target
         local targetPlayer = Server.GetPlayerByName(target)
         if targetPlayer then
             Server.chatSocket:to(targetPlayer):emit("typing", data)
         end
-        
+
     elseif channel == ChatSystem.ChannelType.LOCAL then
         -- Send to nearby players
         local x, y, z = player:getX(), player:getY(), player:getZ()
@@ -44,11 +36,11 @@ function Server.BroadcastTypingIndicator(player, channel, isTyping, target)
                 Server.chatSocket:to(recipient):emit("typing", data)
             end
         end
-        
+
     elseif channel == ChatSystem.ChannelType.GLOBAL then
         -- broadcast(player) excludes that player
         Server.chatSocket:broadcast(player):emit("typing", data)
-        
+
     elseif channel == ChatSystem.ChannelType.FACTION then
         local faction = Server.playerData[username] and Server.playerData[username].faction
         if faction then
@@ -61,7 +53,7 @@ function Server.BroadcastTypingIndicator(player, channel, isTyping, target)
                 end
             end
         end
-        
+
     elseif channel == ChatSystem.ChannelType.SAFEHOUSE then
         local safehouse = Server.playerData[username] and Server.playerData[username].safehouse
         if safehouse then
@@ -74,7 +66,7 @@ function Server.BroadcastTypingIndicator(player, channel, isTyping, target)
                 end
             end
         end
-        
+
     elseif channel == ChatSystem.ChannelType.ADMIN then
         for otherUsername, otherData in pairs(Server.playerData) do
             if otherData.isAdmin and otherUsername ~= username then
@@ -84,7 +76,7 @@ function Server.BroadcastTypingIndicator(player, channel, isTyping, target)
                 end
             end
         end
-        
+
     elseif channel == ChatSystem.ChannelType.STAFF then
         for otherUsername, otherData in pairs(Server.playerData) do
             if otherData.isStaff and otherUsername ~= username then
@@ -98,40 +90,42 @@ function Server.BroadcastTypingIndicator(player, channel, isTyping, target)
 end
 
 -- ==========================================================
--- Event Handlers (registered by Server.lua)
+-- Event Handlers
 -- ==========================================================
 
 --- Handle typing start event
 ---@param player IsoPlayer
 ---@param data table
-function Server.HandleTypingStart(player, data)
+function Module.HandleTypingStart(player, data)
+    local Server = ChatSystem.Server
     local username = player:getUsername()
     local channel = data.channel or ChatSystem.ChannelType.LOCAL
     local target = data.target  -- For PM typing
-    
+
     if not Server.typingPlayers[channel] then
         Server.typingPlayers[channel] = {}
     end
     Server.typingPlayers[channel][username] = getTimestampMs()
-    
+
     -- Broadcast typing indicator based on channel
-    Server.BroadcastTypingIndicator(player, channel, true, target)
+    Module.BroadcastTypingIndicator(player, channel, true, target)
 end
 
 --- Handle typing stop event
 ---@param player IsoPlayer
 ---@param data table
-function Server.HandleTypingStop(player, data)
+function Module.HandleTypingStop(player, data)
+    local Server = ChatSystem.Server
     local username = player:getUsername()
     local channel = data.channel or ChatSystem.ChannelType.LOCAL
     local target = data.target  -- For PM typing
-    
+
     if Server.typingPlayers[channel] then
         Server.typingPlayers[channel][username] = nil
     end
-    
+
     -- Broadcast typing indicator based on channel
-    Server.BroadcastTypingIndicator(player, channel, false, target)
+    Module.BroadcastTypingIndicator(player, channel, false, target)
 end
 
 -- ==========================================================
@@ -139,10 +133,11 @@ end
 -- ==========================================================
 
 --- Cleanup old typing indicators (timeout after 5 seconds)
-function Server.CleanupTypingIndicators()
+function Module.CleanupTypingIndicators()
+    local Server = ChatSystem.Server
     local now = getTimestampMs()
     local timeout = 5000 -- 5 seconds
-    
+
     for channel, players in pairs(Server.typingPlayers) do
         for username, timestamp in pairs(players) do
             if now - timestamp > timeout then
@@ -150,7 +145,7 @@ function Server.CleanupTypingIndicators()
                 -- Broadcast stop typing
                 local player = Server.GetPlayerByName(username)
                 if player then
-                    Server.BroadcastTypingIndicator(player, channel, false)
+                    Module.BroadcastTypingIndicator(player, channel, false)
                 end
             end
         end
@@ -160,16 +155,17 @@ end
 --- Clear typing indicators for a player (on quit/death)
 ---@param username string
 ---@param player IsoPlayer|nil Optional player object for broadcasting
-function Server.ClearPlayerTyping(username, player)
+function Module.ClearPlayerTyping(username, player)
+    local Server = ChatSystem.Server
     for channel, players in pairs(Server.typingPlayers) do
         if players[username] then
             players[username] = nil
             -- Broadcast stop typing if we have the player object
             if player then
-                Server.BroadcastTypingIndicator(player, channel, false)
+                Module.BroadcastTypingIndicator(player, channel, false)
             end
         end
     end
 end
 
-print("[ChatSystem] Typing Indicators (Server) loaded")
+return Module

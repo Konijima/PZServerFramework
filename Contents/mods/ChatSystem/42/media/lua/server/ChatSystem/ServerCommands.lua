@@ -1,11 +1,9 @@
--- ChatSystem commands are multiplayer only
-if isClient() then return end
-if not isServer() then return end
+-- ChatSystem Server Commands Module
+-- Handles command parsing, execution, and responses
+-- Returns a module table to be merged into ChatSystem.Commands.Server
 
 require "ChatSystem/Definitions"
 require "ChatSystem/CommandAPI"
-
-ChatSystem.Commands.Server = {}
 
 -- Load command files
 require "ChatSystem/Commands/GeneralCommands"
@@ -14,12 +12,8 @@ require "ChatSystem/Commands/ServerCommands"
 
 print("[ChatSystem] All commands loaded")
 
-local Server = ChatSystem.Commands.Server
+local Module = {}
 local Commands = ChatSystem.Commands
-local Socket = KoniLib.Socket
-
--- Get the chat socket
-local chatSocket = Socket.of("/chat")
 
 -- ==========================================================
 -- Access Level Checking
@@ -36,7 +30,7 @@ local accessHierarchy = {
 --- Get player's access level
 ---@param player IsoPlayer
 ---@return string
-function Server.GetPlayerAccessLevel(player)
+function Module.GetPlayerAccessLevel(player)
     if not player then
         return Commands.AccessLevel.PLAYER
     end
@@ -67,8 +61,8 @@ end
 ---@param player IsoPlayer
 ---@param requiredLevel string
 ---@return boolean
-function Server.HasAccess(player, requiredLevel)
-    local playerLevel = Server.GetPlayerAccessLevel(player)
+function Module.HasAccess(player, requiredLevel)
+    local playerLevel = Module.GetPlayerAccessLevel(player)
     local playerRank = accessHierarchy[playerLevel] or 0
     local requiredRank = accessHierarchy[requiredLevel] or 0
     
@@ -85,7 +79,7 @@ end
 ---@param options table|nil Optional execution options { channel = string }
 ---@return boolean success
 ---@return string|nil error
-function Server.Execute(player, commandText, options)
+function Module.Execute(player, commandText, options)
     if not player then
         return false, "No player"
     end
@@ -103,7 +97,7 @@ function Server.Execute(player, commandText, options)
     end
     
     -- Check access level
-    if not Server.HasAccess(player, cmd.accessLevel) then
+    if not Module.HasAccess(player, cmd.accessLevel) then
         return false, "You don't have permission to use this command"
     end
     
@@ -137,7 +131,7 @@ function Server.Execute(player, commandText, options)
     local context = {
         player = player,
         username = player:getUsername(),
-        accessLevel = Server.GetPlayerAccessLevel(player),
+        accessLevel = Module.GetPlayerAccessLevel(player),
         args = validatedArgs,
         rawArgs = rawArgs,
         argList = args,
@@ -154,7 +148,11 @@ function Server.Execute(player, commandText, options)
     end
     
     -- Log command execution
-    print("[ChatSystem.Commands] " .. player:getUsername() .. " executed: " .. commandText)
+    if result then
+        print("[ChatSystem.Commands] " .. player:getUsername() .. " executed: " .. commandText .. " -> " .. tostring(result))
+    else
+        print("[ChatSystem.Commands] " .. player:getUsername() .. " executed: " .. commandText)
+    end
     
     -- Trigger event
     if Commands.Events then
@@ -173,7 +171,8 @@ end
 ---@param text string
 ---@param isError boolean?
 ---@param channel string?
-function Server.Reply(player, text, isError, channel)
+function Module.Reply(player, text, isError, channel)
+    local Server = ChatSystem.Server
     -- Use provided channel or default to LOCAL for command responses
     local ch = channel or ChatSystem.ChannelType.LOCAL
     local msg = ChatSystem.CreateSystemMessage(text, ch)
@@ -183,30 +182,31 @@ function Server.Reply(player, text, isError, channel)
         msg.color = { r = 0.5, g = 1, b = 0.5 } -- Green for success
     end
     msg.metadata.isCommandResponse = true
-    chatSocket:to(player):emit("message", msg)
+    Server.chatSocket:to(player):emit("message", msg)
 end
 
 --- Send an error response
 ---@param player IsoPlayer
 ---@param text string
 ---@param channel string?
-function Server.ReplyError(player, text, channel)
-    Server.Reply(player, text, true, channel)
+function Module.ReplyError(player, text, channel)
+    Module.Reply(player, text, true, channel)
 end
 
 --- Send a success response
 ---@param player IsoPlayer
 ---@param text string
 ---@param channel string?
-function Server.ReplySuccess(player, text, channel)
-    Server.Reply(player, text, false, channel)
+function Module.ReplySuccess(player, text, channel)
+    Module.Reply(player, text, false, channel)
 end
 
 --- Broadcast a message based on channel type
 ---@param text string
 ---@param channel string?
 ---@param sourcePlayer IsoPlayer? Source player for LOCAL channel proximity
-function Server.Broadcast(text, channel, sourcePlayer)
+function Module.Broadcast(text, channel, sourcePlayer)
+    local Server = ChatSystem.Server
     local ch = channel or ChatSystem.ChannelType.LOCAL
     local msg = ChatSystem.CreateSystemMessage(text, ch)
     
@@ -216,7 +216,7 @@ function Server.Broadcast(text, channel, sourcePlayer)
     if not onlinePlayers or onlinePlayers:size() == 0 then
         local player = getPlayer()
         if player then
-            chatSocket:to(player):emit("message", msg)
+            Server.chatSocket:to(player):emit("message", msg)
         end
         return
     end
@@ -235,38 +235,38 @@ function Server.Broadcast(text, channel, sourcePlayer)
             if math.abs(pz - z) <= 1 then
                 local dist = math.sqrt((px - x)^2 + (py - y)^2)
                 if dist <= range then
-                    chatSocket:to(player):emit("message", msg)
+                    Server.chatSocket:to(player):emit("message", msg)
                 end
             end
         end
     elseif ch == ChatSystem.ChannelType.GLOBAL then
         -- GLOBAL: broadcast to all
-        chatSocket:broadcast():emit("message", msg)
+        Server.chatSocket:broadcast():emit("message", msg)
     else
         -- Default: broadcast to all (fallback for other channels)
-        chatSocket:broadcast():emit("message", msg)
+        Server.chatSocket:broadcast():emit("message", msg)
     end
 end
 
 --- Send a message to all players with a specific access level
 ---@param text string
 ---@param minAccessLevel string
-function Server.BroadcastToAccess(text, minAccessLevel)
+function Module.BroadcastToAccess(text, minAccessLevel)
     local onlinePlayers = getOnlinePlayers()
     
     -- SP mode: onlinePlayers is empty userdata or nil
     if not onlinePlayers or onlinePlayers:size() == 0 then
         local player = getPlayer()
-        if player and Server.HasAccess(player, minAccessLevel) then
-            Server.Reply(player, text)
+        if player and Module.HasAccess(player, minAccessLevel) then
+            Module.Reply(player, text)
         end
         return
     end
     
     for i = 0, onlinePlayers:size() - 1 do
         local player = onlinePlayers:get(i)
-        if Server.HasAccess(player, minAccessLevel) then
-            Server.Reply(player, text)
+        if Module.HasAccess(player, minAccessLevel) then
+            Module.Reply(player, text)
         end
     end
 end
@@ -279,7 +279,7 @@ end
 ---@param name string
 ---@return IsoPlayer|nil player
 ---@return string|nil error
-function Server.FindPlayer(name)
+function Module.FindPlayer(name)
     if not name or name == "" then
         return nil, "No player name provided"
     end
@@ -330,42 +330,15 @@ function Server.FindPlayer(name)
 end
 
 -- ==========================================================
--- Integration with Chat Server
+-- Command Message Handler
 -- ==========================================================
-
--- Handle command messages
-chatSocket:onServer("command", function(player, data, context, ack)
-    local commandText = data.command
-    local channel = data.channel or ChatSystem.ChannelType.LOCAL
-    
-    if not commandText or not Commands.IsCommand(commandText) then
-        if ack then
-            ack({ success = false, error = "Invalid command" })
-        end
-        return
-    end
-    
-    local success, result = Server.Execute(player, commandText, { channel = channel })
-    
-    if not success then
-        Server.ReplyError(player, result or "Command failed")
-    end
-    
-    if ack then
-        ack({ success = success, result = result })
-    end
-end)
-
--- Also handle commands sent as regular messages
--- This hooks into the existing message handler logic
-local originalMessageHandler = nil
 
 --- Check if a message is a command and handle it
 ---@param player IsoPlayer
 ---@param text string
 ---@param channel string|nil The source channel the command was sent from
 ---@return boolean wasCommand
-function Server.HandleMessageAsCommand(player, text, channel)
+function Module.HandleMessageAsCommand(player, text, channel)
     if not Commands.IsCommand(text) then
         return false
     end
@@ -381,13 +354,13 @@ function Server.HandleMessageAsCommand(player, text, channel)
     end
     
     -- This is a custom command
-    local success, result = Server.Execute(player, text, { channel = channel })
+    local success, result = Module.Execute(player, text, { channel = channel })
     
     if not success then
-        Server.ReplyError(player, result or "Command failed")
+        Module.ReplyError(player, result or "Command failed")
     end
     
     return true
 end
 
-print("[ChatSystem] CommandAPI Server Loaded")
+return Module

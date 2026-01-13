@@ -4,10 +4,10 @@ if isClient() then return end
 if not isServer() then return end
 
 require "ChatSystem/CommandAPI"
-require "ChatSystem/CommandServer"
 
 local Commands = ChatSystem.Commands
-local Server = Commands.Server
+-- NOTE: We access ChatSystem.Commands.Server at runtime inside handlers
+-- because it's not available at file load time (Server.lua merges it later)
 
 -- ==========================================================
 -- Kick Command (Moderator+)
@@ -24,6 +24,7 @@ Commands.Register({
         { name = "reason", type = Commands.ArgType.STRING, required = false, default = "Kicked by admin" }
     },
     handler = function(context)
+        local Server = ChatSystem.Commands.Server
         local target, err = Server.FindPlayer(context.argList[1])
         if not target then
             Server.ReplyError(context.player, err, context.channel)
@@ -70,6 +71,7 @@ Commands.Register({
         { name = "message", type = Commands.ArgType.STRING, required = true }
     },
     handler = function(context)
+        local Server = ChatSystem.Commands.Server
         local message = context.rawArgs
         if not message or message == "" then
             Server.ReplyError(context.player, "Usage: /announce <message>", context.channel)
@@ -101,6 +103,7 @@ Commands.Register({
         { name = "target", type = Commands.ArgType.STRING, required = true }
     },
     handler = function(context)
+        local Server = ChatSystem.Commands.Server
         local targetStr = context.args.target
         local chatSocket = KoniLib.Socket.of("/chat")
         
@@ -154,6 +157,7 @@ Commands.Register({
         { name = "player", type = Commands.ArgType.PLAYER, required = true }
     },
     handler = function(context)
+        local Server = ChatSystem.Commands.Server
         local target, err = Server.FindPlayer(context.args.player)
         if not target then
             Server.ReplyError(context.player, err, context.channel)
@@ -187,15 +191,29 @@ Commands.Register({
 Commands.Register({
     name = "god",
     aliases = { "godmode" },
-    description = "Toggle god mode",
+    description = "Toggle god mode for yourself or another player",
+    usage = "[player]",
     accessLevel = Commands.AccessLevel.ADMIN,
     category = "admin",
+    args = {
+        { name = "target", type = Commands.ArgType.PLAYER, required = false }
+    },
     handler = function(context)
-        local player = context.player
-        local isGod = player:isGodMod()
-        player:setGodMod(not isGod)
+        local Server = ChatSystem.Commands.Server
+        local target = context.args.target or context.player
+        local targetName = target:getUsername()
+        local isGod = target:isGodMod()
+        target:setGodMod(not isGod)
         
-        Server.ReplySuccess(context.player, "God mode: " .. (not isGod and "ENABLED" or "DISABLED"), context.channel)
+        local status = not isGod and "ENABLED" or "DISABLED"
+        if target == context.player then
+            Server.ReplySuccess(context.player, "God mode: " .. status, context.channel)
+            return "self -> " .. status
+        else
+            Server.ReplySuccess(context.player, "God mode for " .. targetName .. ": " .. status, context.channel)
+            Server.ReplySuccess(target, "God mode: " .. status .. " (by " .. context.username .. ")")
+            return targetName .. " -> " .. status
+        end
     end
 })
 
@@ -206,15 +224,29 @@ Commands.Register({
 Commands.Register({
     name = "invisible",
     aliases = { "invis", "vanish" },
-    description = "Toggle invisibility",
+    description = "Toggle invisibility for yourself or another player",
+    usage = "[player]",
     accessLevel = Commands.AccessLevel.ADMIN,
     category = "admin",
+    args = {
+        { name = "target", type = Commands.ArgType.PLAYER, required = false }
+    },
     handler = function(context)
-        local player = context.player
-        local isInvis = player:isInvisible()
-        player:setInvisible(not isInvis)
+        local Server = ChatSystem.Commands.Server
+        local target = context.args.target or context.player
+        local targetName = target:getUsername()
+        local isInvis = target:isInvisible()
+        target:setInvisible(not isInvis)
         
-        Server.ReplySuccess(context.player, "Invisibility: " .. (not isInvis and "ENABLED" or "DISABLED"), context.channel)
+        local status = not isInvis and "ENABLED" or "DISABLED"
+        if target == context.player then
+            Server.ReplySuccess(context.player, "Invisibility: " .. status, context.channel)
+            return "self -> " .. status
+        else
+            Server.ReplySuccess(context.player, "Invisibility for " .. targetName .. ": " .. status, context.channel)
+            Server.ReplySuccess(target, "Invisibility: " .. status .. " (by " .. context.username .. ")")
+            return targetName .. " -> " .. status
+        end
     end
 })
 

@@ -4,10 +4,10 @@ if isClient() then return end
 if not isServer() then return end
 
 require "ChatSystem/CommandAPI"
-require "ChatSystem/CommandServer"
 
 local Commands = ChatSystem.Commands
-local Server = Commands.Server
+-- NOTE: We access ChatSystem.Commands.Server at runtime inside handlers
+-- because it's not available at file load time (Server.lua merges it later)
 
 --- Get the display name for a player based on roleplay mode setting
 ---@param player IsoPlayer
@@ -52,6 +52,7 @@ Commands.Register({
     handler = function(context)
         local cmdName = context.args.command
         
+        local Server = ChatSystem.Commands.Server
         if cmdName then
             -- Show help for specific command
             local cmd = Commands.Get(cmdName)
@@ -103,6 +104,7 @@ Commands.Register({
     accessLevel = Commands.AccessLevel.PLAYER,
     category = "general",
     handler = function(context)
+        local Server = ChatSystem.Commands.Server
         local onlinePlayers = getOnlinePlayers()
         
         if not onlinePlayers or onlinePlayers:size() == 0 then
@@ -168,6 +170,7 @@ Commands.Register({
         { name = "dice", type = Commands.ArgType.STRING, required = false, default = "1d6" }
     },
     handler = function(context)
+        local Server = ChatSystem.Commands.Server
         local diceStr = context.args.dice or "1d6"
         
         -- Parse dice notation (NdM)
@@ -204,6 +207,8 @@ Commands.Register({
         
         -- Broadcast to the channel the command was sent from
         Server.Broadcast(result, context.channel, context.player)
+        
+        return result
     end
 })
 
@@ -222,6 +227,7 @@ Commands.Register({
         { name = "action", type = Commands.ArgType.STRING, required = true }
     },
     handler = function(context)
+        local Server = ChatSystem.Commands.Server
         local action = context.rawArgs
         if not action or action == "" then
             Server.ReplyError(context.player, "Usage: /me <action>", context.channel)

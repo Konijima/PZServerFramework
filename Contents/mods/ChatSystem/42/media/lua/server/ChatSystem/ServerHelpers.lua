@@ -1,12 +1,10 @@
--- ChatSystem Server Helpers
+-- ChatSystem Server Helpers Module
 -- Utility functions for player lookups, permissions, and range calculations
-if isClient() then return end
-if not isServer() then return end
+-- Returns a module table to be merged into ChatSystem.Server
 
 require "ChatSystem/Definitions"
 
-ChatSystem.Server = ChatSystem.Server or {}
-local Server = ChatSystem.Server
+local Module = {}
 
 -- ==========================================================
 -- Table Utilities
@@ -15,7 +13,7 @@ local Server = ChatSystem.Server
 --- Check if a table is empty (replacement for next() which isn't available in PZ)
 ---@param t table|nil
 ---@return boolean
-function Server.TableIsEmpty(t)
+function Module.TableIsEmpty(t)
     if not t then return true end
     for _ in pairs(t) do
         return false
@@ -30,7 +28,7 @@ end
 --- Get the display name for a player based on roleplay mode setting
 ---@param player IsoPlayer
 ---@return string The display name (character name if roleplay mode, username otherwise)
-function Server.GetPlayerDisplayName(player)
+function Module.GetPlayerDisplayName(player)
     if not player then return "Unknown" end
     
     -- If roleplay mode is enabled, use character name
@@ -60,7 +58,7 @@ end
 --- Get a player by username (works in both SP and MP)
 ---@param username string
 ---@return IsoPlayer|nil
-function Server.GetPlayerByName(username)
+function Module.GetPlayerByName(username)
     if not username then return nil end
     
     -- Try getPlayerByUsername first (MP)
@@ -95,7 +93,7 @@ end
 ---@param z number
 ---@param range number
 ---@return table Array of players
-function Server.GetPlayersInRange(x, y, z, range)
+function Module.GetPlayersInRange(x, y, z, range)
     local players = {}
     local onlinePlayers = getOnlinePlayers()
     
@@ -132,7 +130,7 @@ end
 --- Get player's faction name
 ---@param player IsoPlayer
 ---@return string|nil
-function Server.GetPlayerFaction(player)
+function Module.GetPlayerFaction(player)
     local faction = Faction.getPlayerFaction(player)
     if faction then
         return faction:getName()
@@ -143,7 +141,7 @@ end
 --- Get player's safehouse ID (unique identifier for comparison)
 ---@param player IsoPlayer
 ---@return string|nil Safehouse ID (x_y format) or nil
-function Server.GetPlayerSafehouseId(player)
+function Module.GetPlayerSafehouseId(player)
     local safehouse = SafeHouse.hasSafehouse(player)
     if safehouse then
         -- Use coordinates as unique ID
@@ -155,7 +153,7 @@ end
 --- Get player's safehouse object
 ---@param player IsoPlayer
 ---@return SafeHouse|nil
-function Server.GetPlayerSafehouse(player)
+function Module.GetPlayerSafehouse(player)
     return SafeHouse.hasSafehouse(player)
 end
 
@@ -166,7 +164,7 @@ end
 --- Check if player is admin (actual "admin" access level only)
 ---@param player IsoPlayer
 ---@return boolean
-function Server.IsPlayerAdmin(player)
+function Module.IsPlayerAdmin(player)
     -- Only "admin" access level can access admin chat (not moderator, observer, etc.)
     local accessLevel = player:getAccessLevel()
     return accessLevel and string.lower(accessLevel) == "admin"
@@ -176,9 +174,9 @@ end
 --- Uses capability check for SeePlayersConnected as indicator of staff role
 ---@param player IsoPlayer
 ---@return boolean
-function Server.IsPlayerStaff(player)
+function Module.IsPlayerStaff(player)
     -- Admins are always staff
-    if Server.IsPlayerAdmin(player) then
+    if Module.IsPlayerAdmin(player) then
         return true
     end
     
@@ -210,7 +208,7 @@ end
 
 --- Build current player list for broadcasting
 ---@return table Array of player data
-function Server.BuildPlayerList()
+function Module.BuildPlayerList()
     local players = {}
     local onlinePlayers = getOnlinePlayers()
     
@@ -219,8 +217,8 @@ function Server.BuildPlayerList()
         if p then
             table.insert(players, {
                 username = p:getUsername(),
-                isAdmin = Server.IsPlayerAdmin(p),
-                isStaff = Server.IsPlayerStaff(p)
+                isAdmin = Module.IsPlayerAdmin(p),
+                isStaff = Module.IsPlayerStaff(p)
             })
         end
     else
@@ -228,8 +226,8 @@ function Server.BuildPlayerList()
             local p = onlinePlayers:get(i)
             table.insert(players, {
                 username = p:getUsername(),
-                isAdmin = Server.IsPlayerAdmin(p),
-                isStaff = Server.IsPlayerStaff(p)
+                isAdmin = Module.IsPlayerAdmin(p),
+                isStaff = Module.IsPlayerStaff(p)
             })
         end
     end
@@ -237,4 +235,4 @@ function Server.BuildPlayerList()
     return players
 end
 
-print("[ChatSystem] Server Helpers loaded")
+return Module

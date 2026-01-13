@@ -4,10 +4,10 @@ if isClient() then return end
 if not isServer() then return end
 
 require "ChatSystem/CommandAPI"
-require "ChatSystem/CommandServer"
 
 local Commands = ChatSystem.Commands
-local Server = Commands.Server
+-- NOTE: We access ChatSystem.Commands.Server at runtime inside handlers
+-- because it's not available at file load time (Server.lua merges it later)
 
 -- ==========================================================
 -- Server Message Command (Owner)
@@ -24,6 +24,7 @@ Commands.Register({
         { name = "message", type = Commands.ArgType.STRING, required = true }
     },
     handler = function(context)
+        local Server = ChatSystem.Commands.Server
         local message = context.rawArgs
         if not message or message == "" then
             Server.ReplyError(context.player, "Usage: /servermsg <message>", context.channel)
