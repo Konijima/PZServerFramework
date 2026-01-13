@@ -12,7 +12,7 @@
 
 ## Dependencies
 
-*   **[KoniLib](../contents/mods/KoniLib/README.md)**: Required for networking and shared utilities.
+*   **[KoniLib](../../Contents/mods/KoniLib/README.md)**: Required for networking and shared utilities.
 
 ## Usage Guide
 

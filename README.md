@@ -5,12 +5,12 @@ A collection of Project Zomboid Mods and Frameworks designed for server manageme
 ## Documentation
 
 Full API documentation is available in the [docs/](docs/) folder:
-- [AreaSystem.md](docs/AreaSystem.md) - Area management and visualization
-- [ChatSystem.md](docs/ChatSystem.md) - Chat replacement and command system
-- [KoniLib.md](docs/KoniLib.md) - Core library and utilities
-- [API.md](docs/API.md) - Main API reference
-- [SocketAPI.md](docs/SocketAPI.md) - Socket.io-like networking system
-- [EventsAPI.md](docs/EventsAPI.md) - Custom lifecycle events
+- [AreaSystem Documentation](docs/AreaSystem/README.md) - Area management and visualization
+- [ChatSystem Documentation](docs/ChatSystem/README.md) - Chat replacement and command system
+- [KoniLib Documentation](docs/KoniLib/README.md) - Core library and utilities
+- [KoniLib API Reference](docs/KoniLib/API.md) - Main API reference
+- [Socket API](docs/KoniLib/SocketAPI.md) - Socket.io-like networking system
+- [Events API](docs/KoniLib/EventsAPI.md) - Custom lifecycle events
 
 ## Contents
 
@@ -23,7 +23,7 @@ A shared library mod serving as the foundation for other mods in this suite.
 *   **Event System:** `KoniLib.Event` wrapper for creating and managing custom Lua events with type safety.
 *   **Lifecycle Events:** Standardized events (`OnNetworkAvailable`, `OnPlayerInit`, `OnAccessLevelChanged`, etc.) that solve common MP/SP timing issues.
 
-See [KoniLib Documentation](docs/KoniLib.md) for detailed usage.
+See [KoniLib Documentation](docs/KoniLib/README.md) for detailed usage.
 
 ### 2. ChatSystem
 A custom chat implementation replacing vanilla chat with a modern, Socket.io-based system.
@@ -33,7 +33,7 @@ A custom chat implementation replacing vanilla chat with a modern, Socket.io-bas
 *   **Proximity Chat:** Local chat respects distance between players.
 *   **Live Settings:** Server sandbox options update in real-time.
 
-See [ChatSystem Documentation](docs/ChatSystem.md) for detailed usage.
+See [ChatSystem Documentation](docs/ChatSystem/README.md) for detailed usage.
 
 ### 3. AreaSystem
 An admin tool and system for creating, managing, and visualizing custom areas within the game world.
@@ -43,7 +43,7 @@ An admin tool and system for creating, managing, and visualizing custom areas wi
 *   **Real-time Sync:** Changes sync instantly across all connected clients.
 *   **Persistence:** Data survives server restarts.
 
-See [AreaSystem Documentation](docs/AreaSystem.md) for usage guide.
+See [AreaSystem Documentation](docs/AreaSystem/README.md) for usage guide.
 
 ## Installation
 
