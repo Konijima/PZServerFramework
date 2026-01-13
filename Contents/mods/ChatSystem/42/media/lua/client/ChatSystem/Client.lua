@@ -25,7 +25,7 @@ for k, v in pairs(ChannelManager) do Client[k] = v end
 -- Client state
 Client.socket = nil
 Client.messages = {}       -- All messages
-Client.currentChannel = ChatSystem.ChannelType.LOCAL
+Client.currentChannel = ChatSystem.ChannelType.GLOBAL  -- Default to global if enabled
 Client.onlinePlayers = {}
 Client.isConnected = false
 Client.typingPlayers = {}  -- { [channel] = { [username] = true } }

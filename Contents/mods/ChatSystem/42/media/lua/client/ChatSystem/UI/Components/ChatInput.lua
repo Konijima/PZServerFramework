@@ -16,7 +16,7 @@ local Input = ChatUI.Components.ChatInput
 function Input.create(window)
     local pad = ChatUI.Constants.PADDING
     local entryH = ChatUI.Constants.ENTRY_HEIGHT
-    local bottomPad = ChatUI.Constants.BOTTOM_PADDING
+    local bottomPad = 8  -- Reduced from BOTTOM_PADDING to bring input closer to bottom
     
     -- Elements.TextEntry auto-initializes and handles deferred props like editable
     local entry = Elements.TextEntry({
@@ -168,8 +168,9 @@ function Input.updateLayout(entry, window)
     
     local pad = ChatUI.Constants.PADDING
     local entryH = ChatUI.Constants.ENTRY_HEIGHT
-    local bottomPad = ChatUI.State:get("locked") and 5 or ChatUI.Constants.BOTTOM_PADDING
+    local bottomPad = ChatUI.State:get("locked") and 5 or 8  -- Use consistent reduced padding
     
+    entry:setX(pad)
     entry:setY(window.height - entryH - bottomPad)
     entry:setWidth(window.width - pad * 2)
 end

@@ -20,7 +20,7 @@ function Messages.create(window)
     local tabH = ChatUI.Constants.TAB_HEIGHT
     local entryH = ChatUI.Constants.ENTRY_HEIGHT
     local typingH = ChatUI.Constants.TYPING_INDICATOR_HEIGHT
-    local bottomPad = ChatUI.Constants.BOTTOM_PADDING
+    local bottomPad = 8  -- Match the input's bottom padding
     
     local y = th + pad + tabH + pad
     local h = window.height - y - entryH - bottomPad - pad - typingH
@@ -73,7 +73,9 @@ function Messages.rebuild(panel)
     local myUsername = getPlayer() and getPlayer():getUsername() or ""
     
     panel:setText("")
+    -- Must set both font and defaultFont for ISRichTextPanel to work properly
     panel.font = font
+    panel.defaultFont = font
     
     local text = ""
     
@@ -172,7 +174,7 @@ function Messages.updateLayout(panel, window)
     local tabH = ChatUI.Constants.TAB_HEIGHT
     local entryH = ChatUI.Constants.ENTRY_HEIGHT
     local typingH = ChatUI.Constants.TYPING_INDICATOR_HEIGHT
-    local bottomPad = ChatUI.State:get("locked") and 5 or ChatUI.Constants.BOTTOM_PADDING
+    local bottomPad = ChatUI.State:get("locked") and 5 or 8  -- Match input's bottom padding
     
     local y = th + pad + tabH + pad
     local h = window.height - y - entryH - bottomPad - pad - typingH

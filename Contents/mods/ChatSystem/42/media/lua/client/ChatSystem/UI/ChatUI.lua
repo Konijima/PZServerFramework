@@ -98,19 +98,20 @@ function ChatUI.Create()
     -- Hide vanilla chat
     ChatUI.HideVanillaChat()
     
-    -- Calculate position
+    -- Load saved settings first
+    ChatUI.LoadSettings()
+    
+    -- Calculate default position
     local screenW = getCore():getScreenWidth()
     local screenH = getCore():getScreenHeight()
     
-    local chatW = 450
-    local chatH = 250
-    local chatX = 15
-    local chatY = screenH - chatH - 150
+    -- Use saved position/size or defaults
+    local chatW = ChatUI.State:get("windowW") or 450
+    local chatH = ChatUI.State:get("windowH") or 250
+    local chatX = ChatUI.State:get("windowX") or 15
+    local chatY = ChatUI.State:get("windowY") or (screenH - chatH - 150)
     
-    -- Reset state
-    ChatUI.State:reset()
-    
-    -- Create main chat window
+    -- Create main chat window (don't reset state - we just loaded settings!)
     ChatUI.instance = ChatUI.Components.ChatWindow.create({
         x = chatX,
         y = chatY,
@@ -120,9 +121,25 @@ function ChatUI.Create()
     
     ChatUI.instance:addToUIManager()
     
-    -- Register with ISLayoutManager for position/size persistence
-    require "ISUI/ISLayoutManager"
-    ISLayoutManager.RegisterWindow('customchat', ISCollapsableWindow, ChatUI.instance)
+    -- Track window position/size changes for saving
+    local origOnResize = ChatUI.instance.onResize
+    ChatUI.instance.onResize = function(self)
+        if origOnResize then origOnResize(self) end
+        -- Save window dimensions
+        ChatUI.State:set("windowW", self:getWidth())
+        ChatUI.State:set("windowH", self:getHeight())
+        ChatUI.SaveSettings()
+    end
+    
+    -- Track window movement
+    local origOnMouseUp = ChatUI.instance.onMouseUp
+    ChatUI.instance.onMouseUp = function(self, x, y)
+        if origOnMouseUp then origOnMouseUp(self, x, y) end
+        -- Save window position after drag
+        ChatUI.State:set("windowX", self:getX())
+        ChatUI.State:set("windowY", self:getY())
+        ChatUI.SaveSettings()
+    end
     
     -- Load any messages that were received before the UI was created
     if ChatSystem.Client and ChatSystem.Client.messages then
@@ -152,7 +169,12 @@ function ChatUI.Create()
         if channel == "private" and target then
             key = "pm:" .. target
         end
-        local typingUsers = ChatUI.State:get("typingUsers") or {}
+        -- Create a new table to ensure state change is detected (shallow comparison)
+        local oldTypingUsers = ChatUI.State:get("typingUsers") or {}
+        local typingUsers = {}
+        for k, v in pairs(oldTypingUsers) do
+            typingUsers[k] = v
+        end
         typingUsers[key] = users
         ChatUI.State:set("typingUsers", typingUsers)
     end)

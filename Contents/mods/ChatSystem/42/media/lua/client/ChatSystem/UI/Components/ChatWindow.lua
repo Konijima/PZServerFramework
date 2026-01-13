@@ -56,6 +56,14 @@ function ChatWindow.create(props)
         ChatWindow._updateLockState(locked)
     end)
     
+    -- Reset opacity when fade is disabled
+    ChatUI.State:subscribe("fadeEnabled", function(enabled)
+        if not enabled and _window then
+            _window.backgroundColor.a = ChatUI.State:get("maxOpaque")
+            ChatUI.State:set("fadeTimer", 0)
+        end
+    end)
+    
     return _window
 end
 
@@ -122,19 +130,23 @@ end
 function ChatWindow._createGearButton(window)
     local th = window:titleBarHeight()
     local pad = ChatUI.Constants.PADDING
+    local btnSize = 16
     
     -- Elements.Button auto-initializes
     local btn = Elements.Button({
-        x = window.width - 16 - pad,
+        x = window.width - btnSize - pad,
         y = th + pad,
-        width = 16,
-        height = 16,
+        width = btnSize,
+        height = btnSize,
         text = "",
         image = getTexture("media/ui/inventoryPanes/Button_Gear.png"),
         backgroundColor = { r = 0, g = 0, b = 0, a = 0 },
         borderColor = { r = 0, g = 0, b = 0, a = 0 },
+        backgroundColorMouseOver = { r = 0, g = 0, b = 0, a = 0 },
         anchorLeft = false,
         anchorRight = true,
+        anchorTop = true,
+        anchorBottom = false,
         onClick = ChatWindow._onGearClick,
     })
     return btn
@@ -142,7 +154,13 @@ end
 
 function ChatWindow._setupBehaviors(window)
     local origPrerender = window.prerender
+    local firstFrame = true
     window.prerender = function(win)
+        -- Fix gear button position on first frame (after window is fully laid out)
+        if firstFrame then
+            firstFrame = false
+            ChatWindow._onResize(win)
+        end
         ChatWindow._handleFade(win)
         -- Re-focus input if we were focused and clicked inside the window
         if ChatWindow._refocusNextFrame then
@@ -198,15 +216,18 @@ function ChatWindow._onResize(window)
     ChatUI.Components.ChatInput.updateLayout(_input, window)
     ChatUI.Components.TypingIndicator.updateLayout(_typing, window)
     
-    -- Update gear button position
+    -- Update gear button position manually since anchoring may not be perfect
     if _gearBtn then
         local pad = ChatUI.Constants.PADDING
+        local th = window:titleBarHeight()
         _gearBtn:setX(window.width - 16 - pad)
+        _gearBtn:setY(th + pad)
     end
 end
 
 function ChatWindow._onLockClick()
     ChatUI.State:set("locked", not ChatUI.State:get("locked"))
+    ChatUI.SaveSettings()
 end
 
 function ChatWindow._onGearClick()
@@ -246,6 +267,56 @@ function ChatWindow._updateLockState(locked)
         local tex = locked and getTexture("media/ui/inventoryPanes/Button_Lock.png")
                            or getTexture("media/ui/inventoryPanes/Button_LockOpen.png")
         _lockBtn:setImage(tex)
+    end
+end
+
+-- ==========================================================
+-- Utility Functions
+-- ==========================================================
+
+--- Ensure the chat window is within screen bounds
+function ChatWindow.ensureOnScreen(window)
+    if not window then return end
+    
+    local screenW = getCore():getScreenWidth()
+    local screenH = getCore():getScreenHeight()
+    
+    local x = window:getX()
+    local y = window:getY()
+    local w = window:getWidth()
+    local h = window:getHeight()
+    local adjusted = false
+    
+    -- Clamp width and height to screen size
+    if w > screenW - 20 then
+        w = screenW - 20
+        adjusted = true
+    end
+    if h > screenH - 20 then
+        h = screenH - 20
+        adjusted = true
+    end
+    
+    -- Ensure minimum size
+    w = math.max(w, ChatUI.Constants.MIN_WIDTH)
+    h = math.max(h, ChatUI.Constants.MIN_HEIGHT)
+    
+    -- Clamp position to keep window on screen
+    local minVisible = 50
+    local newX = math.max(-w + minVisible, math.min(x, screenW - minVisible))
+    local newY = math.max(0, math.min(y, screenH - minVisible))
+    
+    if newX ~= x or newY ~= y then
+        adjusted = true
+    end
+    
+    if adjusted then
+        window:setX(newX)
+        window:setY(newY)
+        window:setWidth(w)
+        window:setHeight(h)
+        ChatWindow._onResize(window)
+        print("[ChatSystem] Chat window adjusted to fit screen bounds: " .. math.floor(newX) .. "," .. math.floor(newY) .. " (" .. math.floor(w) .. "x" .. math.floor(h) .. ")")
     end
 end
 

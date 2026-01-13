@@ -9,6 +9,9 @@ require "ReactiveUI/State"
 
 ChatUI = ChatUI or {}
 
+-- Settings file path
+local SETTINGS_FILE = "ChatSystemSettings.lua"
+
 -- Create the global chat state store using ReactiveUI
 ChatUI.State = ReactiveUI.State.create({
     -- Focus state
@@ -26,11 +29,17 @@ ChatUI.State = ReactiveUI.State.create({
     fadeTimer = 0,
     chatFont = "medium",
     
+    -- Window position/size
+    windowX = nil,
+    windowY = nil,
+    windowW = 450,
+    windowH = 250,
+    
     -- Input state
     timerTextEntry = 0,
     
     -- Channel state
-    currentChannel = "local",
+    currentChannel = "global",  -- Default to global if available
     activeConversation = nil,  -- Username for PM conversations
     
     -- Tab state
@@ -53,6 +62,109 @@ ChatUI.State = ReactiveUI.State.create({
     settingsVersion = 0,
 })
 
+-- ==========================================================
+-- Settings Persistence
+-- ==========================================================
+
+--- Save settings to file
+function ChatUI.SaveSettings()
+    local fileWriter = getFileWriter(SETTINGS_FILE, true, false)
+    if not fileWriter then
+        print("[ChatSystem] Failed to open settings file for writing")
+        return false
+    end
+    
+    local settings = {
+        showTimestamp = ChatUI.State:get("showTimestamp"),
+        locked = ChatUI.State:get("locked"),
+        fadeEnabled = ChatUI.State:get("fadeEnabled"),
+        minOpaque = ChatUI.State:get("minOpaque"),
+        chatFont = ChatUI.State:get("chatFont"),
+        windowX = ChatUI.State:get("windowX"),
+        windowY = ChatUI.State:get("windowY"),
+        windowW = ChatUI.State:get("windowW"),
+        windowH = ChatUI.State:get("windowH"),
+    }
+    
+    fileWriter:write("return {\n")
+    for key, value in pairs(settings) do
+        if type(value) == "string" then
+            fileWriter:write("    " .. key .. " = \"" .. tostring(value) .. "\",\n")
+        elseif type(value) == "boolean" then
+            fileWriter:write("    " .. key .. " = " .. tostring(value) .. ",\n")
+        elseif type(value) == "number" then
+            fileWriter:write("    " .. key .. " = " .. tostring(value) .. ",\n")
+        end
+    end
+    fileWriter:write("}\n")
+    fileWriter:close()
+    
+    print("[ChatSystem] Settings saved")
+    return true
+end
+
+--- Load settings from file
+function ChatUI.LoadSettings()
+    local fileReader = getFileReader(SETTINGS_FILE, true)
+    if not fileReader then
+        print("[ChatSystem] No settings file found, using defaults")
+        return false
+    end
+    
+    local content = ""
+    local line = fileReader:readLine()
+    while line do
+        content = content .. line .. "\n"
+        line = fileReader:readLine()
+    end
+    fileReader:close()
+    
+    -- Parse the Lua table
+    local chunk, err = loadstring(content)
+    if not chunk then
+        print("[ChatSystem] Failed to parse settings file: " .. tostring(err))
+        return false
+    end
+    
+    local success, settings = pcall(chunk)
+    if not success or type(settings) ~= "table" then
+        print("[ChatSystem] Failed to load settings: " .. tostring(settings))
+        return false
+    end
+    
+    -- Apply loaded settings
+    if settings.showTimestamp ~= nil then
+        ChatUI.State:set("showTimestamp", settings.showTimestamp)
+    end
+    if settings.locked ~= nil then
+        ChatUI.State:set("locked", settings.locked)
+    end
+    if settings.fadeEnabled ~= nil then
+        ChatUI.State:set("fadeEnabled", settings.fadeEnabled)
+    end
+    if settings.minOpaque ~= nil then
+        ChatUI.State:set("minOpaque", settings.minOpaque)
+    end
+    if settings.chatFont ~= nil then
+        ChatUI.State:set("chatFont", settings.chatFont)
+    end
+    if settings.windowX ~= nil then
+        ChatUI.State:set("windowX", settings.windowX)
+    end
+    if settings.windowY ~= nil then
+        ChatUI.State:set("windowY", settings.windowY)
+    end
+    if settings.windowW ~= nil then
+        ChatUI.State:set("windowW", settings.windowW)
+    end
+    if settings.windowH ~= nil then
+        ChatUI.State:set("windowH", settings.windowH)
+    end
+    
+    print("[ChatSystem] Settings loaded")
+    return true
+end
+
 -- Add reset function to state
 function ChatUI.State:reset()
     self:setMany({
@@ -65,8 +177,12 @@ function ChatUI.State:reset()
         fadeTime = 5,
         fadeTimer = 0,
         chatFont = "medium",
+        windowX = nil,
+        windowY = nil,
+        windowW = 450,
+        windowH = 250,
         timerTextEntry = 0,
-        currentChannel = "local",
+        currentChannel = "global",  -- Default to global if available
         activeConversation = nil,
         unreadMessages = {},
         flashingTabs = {},
