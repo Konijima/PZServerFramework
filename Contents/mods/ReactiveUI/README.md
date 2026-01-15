@@ -10,6 +10,7 @@ Visit the **[ReactiveUI Wiki](https://github.com/Konijima/PZServerFramework/wiki
 
 - **[State Management](https://github.com/Konijima/PZServerFramework/wiki/ReactiveUI-State)** - Reactive state system
 - **[Binding System](https://github.com/Konijima/PZServerFramework/wiki/ReactiveUI-Binding)** - Automatic state-to-UI binding
+- **[Pipes](https://github.com/Konijima/PZServerFramework/wiki/ReactiveUI-Pipes)** - Value transformers for formatting
 - **[Components](https://github.com/Konijima/PZServerFramework/wiki/ReactiveUI-Components)** - Build reusable components
 - **[Elements](https://github.com/Konijima/PZServerFramework/wiki/ReactiveUI-Elements)** - UI element reference
 - **[Layouts](https://github.com/Konijima/PZServerFramework/wiki/ReactiveUI-Layouts)** - Layout helpers
@@ -19,6 +20,7 @@ Visit the **[ReactiveUI Wiki](https://github.com/Konijima/PZServerFramework/wiki
 - **Declarative Syntax**: Describe your UI structure, not imperative construction
 - **Reactive State**: State changes automatically update the UI
 - **Automatic Bindings**: Connect state to UI elements without manual subscriptions
+- **Pipes**: Angular-style value transformers for clean data formatting
 - **Component System**: Build reusable, encapsulated UI components
 - **Layout Helpers**: Easy vertical/horizontal stacks, grids, and flow layouts
 - **Theming**: Consistent colors, fonts, and spacing
@@ -187,9 +189,20 @@ self:bind("isValid"):toEnabled(submitButton)
 self:bind("status"):toCallback(function(status)
     print("Status changed: " .. status)
 end)
+
+-- Using pipes for formatting
+self:bind("price"):pipe("currency"):to(priceLabel, "text")
+-- 1234.5 -> "$1,234.50"
+
+-- Chain multiple pipes
+self:bind("name")
+    :pipe("trim")
+    :pipe("capitalize", { words = true })
+    :pipe("truncate", { length = 20 })
+    :to(nameLabel, "text")
 ```
 
-See **[Binding Documentation](https://github.com/Konijima/PZServerFramework/wiki/ReactiveUI-Binding)** for complete guide.
+See **[Binding Documentation](https://github.com/Konijima/PZServerFramework/wiki/ReactiveUI-Binding)** and **[Pipes Documentation](https://github.com/Konijima/PZServerFramework/wiki/ReactiveUI-Pipes)** for complete guides.
 
 ### State Management
 
@@ -232,6 +245,38 @@ end, function(computedValue)
     -- Called when computed value changes
 end)
 ```
+
+### Pipes
+
+Pipes are reusable value transformers for clean data formatting:
+
+```lua
+-- Built-in pipes
+self:bind("price"):pipe("currency"):to(label, "text")           -- $1,234.50
+self:bind("ratio"):pipe("percent", { decimals = 1 }):to(label, "text")  -- 75.5%
+self:bind("name"):pipe("uppercase"):to(label, "text")           -- JOHN DOE
+self:bind("count"):pipe("plural", { singular = "item" }):to(label, "text")  -- 5 items
+
+-- Chain pipes
+self:bind("description")
+    :pipe("trim")
+    :pipe("capitalize")
+    :pipe("truncate", { length = 50 })
+    :to(label, "text")
+
+-- Available pipes:
+-- String: uppercase, lowercase, capitalize, truncate, trim, pad, slice, replace
+-- Number: number, percent, currency
+-- Date: date (presets: short, medium, long, time, datetime)
+-- Utility: default, prefix, suffix, wrap, plural, boolean, conditional, map, safe, json
+
+-- Register custom pipes
+ReactiveUI.Pipe.register("myPipe", function(value, args)
+    return "[" .. tostring(value) .. "]"
+end)
+```
+
+See **[Pipes Documentation](https://github.com/Konijima/PZServerFramework/wiki/ReactiveUI-Pipes)** for complete reference.
 
 ### Elements
 
