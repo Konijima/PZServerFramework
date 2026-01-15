@@ -35,15 +35,35 @@ All mods (except KoniLib) require **KoniLib** as a dependency. Code is written i
 - Modding Guide: https://pzwiki.net/wiki/Modding
 - Lua Events: https://pzwiki.net/wiki/Lua_Events
 - Mod Structure: https://pzwiki.net/wiki/Mod_structure
+- Decompiling Game Code: https://pzwiki.net/wiki/Decompiling_game_code
+
+**Development Best Practices:**
+- **Always develop in `~/Zomboid/Workshop/` folder**, not `mods/` folder
+- Never subscribe to your own mod on Steam Workshop (causes version conflicts)
+- Keep only one copy of your mod to avoid invisible clashing issues
+- Use `Workshop/{ModName}/` as git repository root (files outside `Contents/` won't upload)
 
 ## Directory Structure
 
 ```
-Contents/mods/{ModName}/42/media/lua/
-├── client/    # Client-only code (UI, local player logic)
-├── server/    # Server-only code (authoritative handlers)
-└── shared/    # Definitions, utilities loaded on both sides
+Contents/mods/{ModName}/
+├── common/              # Mandatory (even if empty) - Large shared assets
+│   └── media/          # Models, textures, animations (not version-specific)
+├── 42/                 # Version folder for Build 42
+│   ├── media/lua/
+│   │   ├── client/     # Client-only code (UI, local player logic)
+│   │   ├── server/     # Server-only code (authoritative handlers)
+│   │   └── shared/     # Definitions, utilities loaded on both sides
+│   ├── mod.info        # Version-specific mod info
+│   └── poster.png
+└── 42.1/               # Optional: Newer version overrides (only if needed)
 ```
+
+**Version Folder Logic:**
+- Game loads **closest version folder** to current build (e.g., `42.1` loads for 42.1+, falls back to `42` if not found)
+- Version folders should contain code files that change between game versions
+- `common/` stores large assets (models, textures) to avoid duplication across versions
+- Load order: `common/` → closest version folder (which overwrites common files if present)
 
 **Mod Loading Order:**
 1. **Dependencies first** - Mods listed in `require=` in `mod.info` load before dependent mods
@@ -61,7 +81,10 @@ Contents/mods/{ModName}/42/media/lua/
 - Use `isClient()` / `isServer()` guards for side-specific code in shared files
 - Server files should start with `if isClient() then return end` guard
 - Global namespace initialization must happen in shared files loaded first (typically `Definitions.lua`)
-- **Build 42 Requirement:** In `mod.info`, dependencies must have backslash prefix: `require=\KoniLib` or `require=\KoniLib,\ReactiveUI`
+- **Build 42 Requirements:**
+  - In `mod.info`, dependencies must have backslash prefix: `require=\KoniLib` or `require=\KoniLib,\ReactiveUI`
+  - **`common/` folder is mandatory**, even if empty - mod won't be detected without it
+  - Case-sensitive filesystems (Linux/MacOS): Use lowercase folder names (`common`, `media`, `lua`)
 
 ## Core Patterns
 
@@ -134,6 +157,20 @@ This pattern allows:
 - **Define:** `MyMod.Events.OnSomething = KoniLib.Event.new("MyMod_OnSomething")`
 - **Subscribe:** `.Add(function(data) end)`
 - **Trigger:** `.Trigger(data)`
+
+**Standard Lua Events Pattern (from vanilla game):**
+```lua
+-- Subscribe to event
+Events.OnCreatePlayer.Add(yourFunction)
+
+-- Remove from event
+Events.OnCreatePlayer.Remove(yourFunction)
+
+-- Function must match event parameters
+local function yourFunction(player)
+    -- Implementation
+end
+```
 
 ### ChatSystem Commands
 - **Register:** `ChatSystem.Commands.Register({ name, handler, accessLevel, args, ... })`
