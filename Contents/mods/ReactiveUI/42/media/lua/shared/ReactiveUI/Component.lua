@@ -1,5 +1,6 @@
 require "ReactiveUI/Definitions"
 require "ReactiveUI/State"
+require "ReactiveUI/Binding"
 require "ReactiveUI/Utils"
 
 --[[
@@ -71,6 +72,8 @@ local Component = ReactiveUI.Component
 ---@field _element ISUIElement The underlying PZ UI element
 ---@field _mounted boolean Whether component is mounted
 ---@field _children table Child components
+---@field _bindings ReactiveUI.BindingManager Managed bindings
+---@field _id string Unique component ID
 local ComponentInstance = {}
 ComponentInstance.__index = ComponentInstance
 
@@ -105,6 +108,7 @@ function Component._createInstance(definition, props)
     instance._mounted = false
     instance._children = {}
     instance._id = ReactiveUI.Utils.generateId(definition.name)
+    instance._bindings = ReactiveUI.Binding.createManager()
     
     -- Subscribe to state changes
     instance._state:subscribeAll(function(key, newValue, oldValue)
@@ -237,6 +241,9 @@ function ComponentInstance:removeFromUIManager()
         self._mounted = false
     end
     
+    -- Clean up bindings
+    self._bindings:unbindAll()
+    
     self._state:clearSubscribers()
 end
 
@@ -320,6 +327,26 @@ function ComponentInstance:removeChild(child)
             break
         end
     end
+end
+
+--- Create a binding from component state to element property
+---@param key string State key to bind
+---@return ReactiveUI.BindingInstance
+function ComponentInstance:bind(key)
+    return self._bindings:bind(self._state, key)
+end
+
+--- Create a computed binding from multiple state keys
+---@param keys table Array of state keys
+---@return ReactiveUI.BindingInstance
+function ComponentInstance:bindComputed(keys)
+    return self._bindings:bindComputed(self._state, keys)
+end
+
+--- Get the binding manager
+---@return ReactiveUI.BindingManager
+function ComponentInstance:getBindings()
+    return self._bindings
 end
 
 return Component

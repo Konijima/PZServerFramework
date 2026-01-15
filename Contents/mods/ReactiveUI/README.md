@@ -9,6 +9,7 @@ Visit the **[ReactiveUI Wiki](https://github.com/Konijima/PZServerFramework/wiki
 ## Quick Links
 
 - **[State Management](https://github.com/Konijima/PZServerFramework/wiki/ReactiveUI-State)** - Reactive state system
+- **[Binding System](https://github.com/Konijima/PZServerFramework/wiki/ReactiveUI-Binding)** - Automatic state-to-UI binding
 - **[Components](https://github.com/Konijima/PZServerFramework/wiki/ReactiveUI-Components)** - Build reusable components
 - **[Elements](https://github.com/Konijima/PZServerFramework/wiki/ReactiveUI-Elements)** - UI element reference
 - **[Layouts](https://github.com/Konijima/PZServerFramework/wiki/ReactiveUI-Layouts)** - Layout helpers
@@ -17,6 +18,7 @@ Visit the **[ReactiveUI Wiki](https://github.com/Konijima/PZServerFramework/wiki
 
 - **Declarative Syntax**: Describe your UI structure, not imperative construction
 - **Reactive State**: State changes automatically update the UI
+- **Automatic Bindings**: Connect state to UI elements without manual subscriptions
 - **Component System**: Build reusable, encapsulated UI components
 - **Layout Helpers**: Easy vertical/horizontal stacks, grids, and flow layouts
 - **Theming**: Consistent colors, fonts, and spacing
@@ -116,7 +118,78 @@ local counter = Counter({ x = 100, y = 100, initialValue = 5 })
 counter:addToUIManager()
 ```
 
+### Component with Bindings (Recommended)
+```lua
+local Counter = ReactiveUI.Component.define({
+    name = "Counter",
+    
+    initialState = {
+        count = 0
+    },
+    
+    render = function(self, props, state)
+        local panel = ReactiveUI.Elements.Panel({ x = 0, y = 0, width = 200, height = 100 })
+        
+        -- Create label
+        local label = ReactiveUI.Elements.Label({ x = 10, y = 10, width = 180, height = 20 })
+        panel:addChild(label)
+        
+        -- Bind state to label (automatically updates when count changes)
+        self:bind("count"):to(label, "text", function(value)
+            return "Count: " .. tostring(value)
+        end)
+        
+        -- Button to increment
+        local button = ReactiveUI.Elements.Button({
+            x = 10, y = 40,
+            width = 100, height = 25,
+            text = "Increment",
+            onClick = function()
+                self:setState({ count = state.count + 1 })
+            end
+        })
+        panel:addChild(button)
+        
+        return panel
+    end
+})
+```
+
 ## API Reference
+
+### Binding System
+
+Automatic state-to-UI binding without manual subscription management:
+
+```lua
+-- One-way binding: state -> UI
+self:bind("count"):to(label, "text", function(value)
+    return "Count: " .. value
+end)
+
+-- Two-way binding: state <-> input
+self:bind("username"):toInput(textBox)
+
+-- Computed binding: multiple state keys
+self:bindComputed({"firstName", "lastName"}):to(label, "text", 
+    function(firstName, lastName)
+        return firstName .. " " .. lastName
+    end
+)
+
+-- Conditional visibility
+self:bind("hasError"):toVisible(errorPanel)
+
+-- Conditional enabled state
+self:bind("isValid"):toEnabled(submitButton)
+
+-- Custom callback
+self:bind("status"):toCallback(function(status)
+    print("Status changed: " .. status)
+end)
+```
+
+See **[Binding Documentation](https://github.com/Konijima/PZServerFramework/wiki/ReactiveUI-Binding)** for complete guide.
 
 ### State Management
 

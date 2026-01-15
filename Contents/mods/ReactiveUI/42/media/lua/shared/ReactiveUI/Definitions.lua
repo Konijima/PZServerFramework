@@ -11,6 +11,7 @@ ReactiveUI.Version = "1.0.0"
 -- Submodule placeholders (populated by other files)
 ReactiveUI.State = {}
 ReactiveUI.Component = {}
+ReactiveUI.Binding = {}
 ReactiveUI.Elements = {}
 ReactiveUI.Utils = {}
 
