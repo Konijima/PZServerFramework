@@ -2,6 +2,8 @@
 ---@field Version string Module version
 ---@field State table State management module
 ---@field Component table Component creation module
+---@field Binding table Data binding module
+---@field Pipe table Pipe transform module
 ---@field Elements table UI element wrappers
 ---@field Utils table Utility functions
 ReactiveUI = ReactiveUI or {}
@@ -12,6 +14,7 @@ ReactiveUI.Version = "1.0.0"
 ReactiveUI.State = {}
 ReactiveUI.Component = {}
 ReactiveUI.Binding = {}
+ReactiveUI.Pipe = {}
 ReactiveUI.Elements = {}
 ReactiveUI.Utils = {}
 

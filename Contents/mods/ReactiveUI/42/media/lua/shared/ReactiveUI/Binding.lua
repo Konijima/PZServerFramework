@@ -1,4 +1,5 @@
 require "ReactiveUI/Definitions"
+require "ReactiveUI/Pipe"
 
 --[[
     ReactiveUI Binding System
@@ -24,6 +25,22 @@ require "ReactiveUI/Definitions"
         return firstName .. " " .. lastName
     end)
     
+    -- Using pipes (Angular-style transforms)
+    local binding = ReactiveUI.Binding.create(myStateStore, "price")
+    binding:pipe(ReactiveUI.Pipe.currency({ symbol = "$" }))
+           :to(myLabel, "text")
+    
+    -- Chaining multiple pipes
+    local binding = ReactiveUI.Binding.create(myStateStore, "name")
+    binding:pipe(ReactiveUI.Pipe.uppercase())
+           :pipe(ReactiveUI.Pipe.truncate({ length = 20 }))
+           :to(myLabel, "text")
+    
+    -- Shorthand pipe syntax
+    local binding = ReactiveUI.Binding.create(myStateStore, "count")
+    binding:pipe("number", { decimals = 2 })
+           :to(myLabel, "text")
+    
     -- Cleanup (automatic on component destroy)
     binding:unbind()
 ]]
@@ -36,6 +53,7 @@ local Binding = ReactiveUI.Binding
 ---@field _element ISUIElement The UI element to update
 ---@field _property string The property to update
 ---@field _transform function? Optional transform function
+---@field _pipes table Array of pipe functions
 ---@field _unsubscribe function? Cleanup function
 ---@field _active boolean Whether binding is active
 local BindingInstance = {}
@@ -52,6 +70,7 @@ function Binding.create(store, key)
     instance._element = nil
     instance._property = nil
     instance._transform = nil
+    instance._pipes = {}
     instance._unsubscribe = nil
     instance._active = false
     return instance
@@ -68,9 +87,42 @@ function Binding.computed(store, keys)
     instance._element = nil
     instance._property = nil
     instance._transform = nil
+    instance._pipes = {}
     instance._unsubscribe = nil
     instance._active = false
     return instance
+end
+
+--- Add a pipe to the binding chain
+---@param pipeOrName function|string Pipe function or pipe name
+---@param args table? Arguments for named pipes
+---@return ReactiveUI.BindingInstance Self for chaining
+function BindingInstance:pipe(pipeOrName, args)
+    local pipeFunc
+    
+    if type(pipeOrName) == "function" then
+        -- Direct pipe function
+        pipeFunc = pipeOrName
+    elseif type(pipeOrName) == "string" then
+        -- Named pipe - create from registry
+        pipeFunc = ReactiveUI.Pipe.create(pipeOrName, args)
+    else
+        error("Pipe must be a function or string name")
+    end
+    
+    table.insert(self._pipes, pipeFunc)
+    return self
+end
+
+--- Apply all pipes to a value
+---@param value any The input value
+---@return any The transformed value
+function BindingInstance:_applyPipes(value)
+    local result = value
+    for _, pipeFunc in ipairs(self._pipes) do
+        result = pipeFunc(result)
+    end
+    return result
 end
 
 --- Bind to a UI element property
@@ -97,9 +149,14 @@ function BindingInstance:to(element, property, transform)
             if not self._element then return end
             
             local value = newValue
+            
+            -- Apply transform first (if any)
             if self._transform then
                 value = self._transform(value)
             end
+            
+            -- Apply pipes
+            value = self:_applyPipes(value)
             
             self:_updateElement(value)
         end
@@ -130,6 +187,9 @@ function BindingInstance:to(element, property, transform)
             else
                 value = values[1] -- Default to first value
             end
+            
+            -- Apply pipes
+            value = self:_applyPipes(value)
             
             self:_updateElement(value)
         end
@@ -244,17 +304,21 @@ function BindingInstance:toCallback(callback)
         local key = self._keys[1]
         
         self._unsubscribe = self._store:subscribe(key, function(newValue)
-            callback(newValue)
+            local value = self:_applyPipes(newValue)
+            callback(value)
         end)
         
         -- Initial call
-        callback(self._store:get(key))
+        local value = self:_applyPipes(self._store:get(key))
+        callback(value)
     else
         local function update()
             local values = {}
             for _, key in ipairs(self._keys) do
                 table.insert(values, self._store:get(key))
             end
+            -- For computed bindings with multiple keys, pipes apply after combining
+            -- The callback receives the raw values, or user can apply their own transform
             callback(unpack(values))
         end
         
