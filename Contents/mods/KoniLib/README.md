@@ -12,6 +12,7 @@ Visit the **[KoniLib Wiki](https://github.com/Konijima/PZServerFramework/wiki/Ko
 - **[Socket API](https://github.com/Konijima/PZServerFramework/wiki/KoniLib-Socket-API)** - Socket.io-like networking with rooms and middleware
 - **[Events System](https://github.com/Konijima/PZServerFramework/wiki/KoniLib-Events-System)** - Standardized lifecycle events
 - **[Logging](https://github.com/Konijima/PZServerFramework/wiki/KoniLib-Logging)** - Per-module debug logging
+- **Player Utilities** - Player lookup, name handling, access level checks
 
 ## Quick Start
 
