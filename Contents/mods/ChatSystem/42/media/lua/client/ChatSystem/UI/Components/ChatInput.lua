@@ -46,22 +46,24 @@ function Input._setupHandlers(entry)
         Input._onSubmit(entry)
     end
     
-    local origOnOtherKey = entry.onOtherKey
-    entry.onOtherKey = function(self, key)
+    -- Override onKeyPress to intercept Up/Down for history navigation
+    -- onOtherKey doesn't receive arrow keys as they're consumed by text entry cursor logic
+    local origOnKeyPress = entry.onKeyPress
+    entry.onKeyPress = function(self, key)
         if key == Keyboard.KEY_UP then
             Input._historyUp(entry)
-            return
+            return true  -- Consume the key
         elseif key == Keyboard.KEY_DOWN then
             Input._historyDown(entry)
-            return
+            return true  -- Consume the key
         elseif key == Keyboard.KEY_TAB then
             Input._cycleChannel()
-            return
+            return true  -- Consume the key
         elseif key == Keyboard.KEY_ESCAPE then
             ChatUI.State:set("focused", false)
-            return
+            return true  -- Consume the key
         end
-        if origOnOtherKey then origOnOtherKey(self, key) end
+        if origOnKeyPress then return origOnKeyPress(self, key) end
     end
     
     entry.onTextChange = function()

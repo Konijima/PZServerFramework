@@ -122,6 +122,9 @@ function ChatUI.Create()
     
     ChatUI.instance:addToUIManager()
     
+    -- Ensure window is within screen bounds (in case saved position is invalid for current resolution)
+    ChatUI.Components.ChatWindow.ensureOnScreen(ChatUI.instance)
+    
     -- Apply locked state to the window after creation
     local isLocked = ChatUI.State:get("locked")
     if isLocked then

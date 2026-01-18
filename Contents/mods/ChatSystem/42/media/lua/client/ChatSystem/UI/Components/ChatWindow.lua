@@ -170,9 +170,10 @@ function ChatWindow._setupBehaviors(window)
     local origPrerender = window.prerender
     local firstFrame = true
     window.prerender = function(win)
-        -- Fix gear button position on first frame (after window is fully laid out)
+        -- Fix layout and ensure on screen on first frame (after window is fully laid out)
         if firstFrame then
             firstFrame = false
+            ChatWindow.ensureOnScreen(win)
             ChatWindow._onResize(win)
         end
         ChatWindow._handleFade(win)

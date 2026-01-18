@@ -107,13 +107,9 @@ function Messages.rebuild(panel)
             text = text .. Messages.formatMessage(msg, showTimestamp) .. " <LINE> "
         end
     else
-        -- Filter messages by current channel (but always show global system messages)
+        -- Filter messages by current channel
         for _, msg in ipairs(messages) do
             local showMessage = msg.channel == currentChannel
-            -- Always show system messages from global channel (announcements, etc.)
-            if msg.isSystem and msg.channel == "global" then
-                showMessage = true
-            end
             -- Don't show PMs in regular channel tabs
             if msg.channel == "private" then
                 showMessage = false
