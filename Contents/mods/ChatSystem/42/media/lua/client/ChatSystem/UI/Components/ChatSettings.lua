@@ -1,11 +1,14 @@
 --[[
     ChatSettings Component - Settings menu, typing indicator
     Built with ReactiveUI framework
+    
+    Uses direct state subscriptions for reactive updates.
 ]]
 
 require "ISUI/ISContextMenu"
 require "ReactiveUI/Client"
 require "ChatSystem/UI/ChatState"
+require "ChatSystem/UI/ChatPipes"
 
 ChatUI = ChatUI or {}
 ChatUI.Components = ChatUI.Components or {}
@@ -13,7 +16,12 @@ ChatUI.Components.TypingIndicator = {}
 ChatUI.Settings = {}
 
 local Elements = ReactiveUI.Elements
+local Pipe = ReactiveUI.Pipe
 local Typing = ChatUI.Components.TypingIndicator
+
+-- Module-level label reference and state subscription
+local _label = nil
+local _stateSubscription = nil
 
 function Typing.create(window)
     local pad = ChatUI.Constants.PADDING
@@ -22,7 +30,7 @@ function Typing.create(window)
     local bottomPad = 8  -- Match the input's bottom padding
     
     -- Elements.Label auto-initializes
-    local label = Elements.Label({
+    _label = Elements.Label({
         x = pad,
         y = window.height - entryH - bottomPad - typingH,
         height = typingH,
@@ -32,17 +40,19 @@ function Typing.create(window)
         anchorTop = false,
         anchorBottom = true,
     })
-    label:setVisible(false)  -- Start hidden
+    _label:setVisible(false)  -- Start hidden
     
-    -- Subscribe to state changes for automatic updates
-    ChatUI.State:subscribe("typingUsers", function() Typing.update(label) end)
-    ChatUI.State:subscribe("currentChannel", function() Typing.update(label) end)
+    -- Subscribe to state changes that affect typing display
+    _stateSubscription = ChatUI.State:subscribe({"typingUsers", "currentChannel"}, function()
+        Typing._updateLabel()
+    end)
     
-    return label
+    return _label
 end
 
-function Typing.update(label)
-    if not label then return end
+-- Internal update function called by subscription
+function Typing._updateLabel()
+    if not _label then return end
     
     local typingUsers = ChatUI.State:get("typingUsers") or {}
     local currentChannel = ChatUI.State:get("currentChannel")
@@ -52,18 +62,12 @@ function Typing.update(label)
     local users = typingUsers[key] or {}
     
     if #users == 0 then
-        label:setVisible(false)
+        _label:setVisible(false)
         return
     end
     
-    local text = ""
-    if #users == 1 then
-        text = users[1] .. " is typing..."
-    elseif #users == 2 then
-        text = users[1] .. " and " .. users[2] .. " are typing..."
-    elseif #users > 2 then
-        text = users[1] .. ", " .. users[2] .. " and " .. (#users - 2) .. " more are typing..."
-    end
+    -- Use the typingUsers pipe for formatting
+    local text = Pipe.create("typingUsers")(users)
     
     -- Get channel color for typing indicator
     local color
@@ -73,12 +77,18 @@ function Typing.update(label)
         color = (ChatSystem.ChannelColors and ChatSystem.ChannelColors[currentChannel]) or { r = 0.6, g = 0.6, b = 0.6 }
     end
     
-    label:setName(text)
-    label:setColor(color.r, color.g, color.b)
-    label:setVisible(true)
+    _label:setName(text)
+    _label:setColor(color.r, color.g, color.b)
+    _label:setVisible(true)
+end
+
+-- Legacy update function for compatibility
+function Typing.update(label)
+    Typing._updateLabel()
 end
 
 function Typing.updateLayout(label, window)
+    label = label or _label
     if not label or not window then return end
     
     local pad = ChatUI.Constants.PADDING

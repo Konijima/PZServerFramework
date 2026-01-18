@@ -179,6 +179,9 @@ function Client.OnMessageReceived(message)
         end
         
         if otherUser then
+            -- Check if this is a new conversation (need to refresh tabs)
+            local isNewConversation = not Client.conversations[otherUser]
+            
             -- Create conversation if it doesn't exist
             if not Client.conversations[otherUser] then
                 Client.conversations[otherUser] = { messages = {}, unread = 0 }
@@ -199,6 +202,11 @@ function Client.OnMessageReceived(message)
             
             -- Play sound for PM
             getSoundManager():PlaySound("UISelectSmall", false, 0.5)
+            
+            -- If this is a new conversation, trigger event to refresh tabs
+            if isNewConversation then
+                ChatSystem.Events.OnConversationsChanged:Trigger()
+            end
         end
     else
         -- Regular channel message - add to message history

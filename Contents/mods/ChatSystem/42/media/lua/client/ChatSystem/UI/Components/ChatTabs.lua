@@ -1,19 +1,25 @@
 --[[
     ChatTabs Component - Channel and PM tabs
     Built with ReactiveUI framework
+    
+    Uses ReactiveUI Components with self:bind() for reactive state subscriptions.
+    Components automatically clean up bindings when destroyed.
 ]]
 
 require "ISUI/ISContextMenu"
 require "ReactiveUI/Client"
 require "ChatSystem/UI/ChatState"
+require "ChatSystem/UI/ChatPipes"
 
 ChatUI = ChatUI or {}
 ChatUI.Components = ChatUI.Components or {}
 
 local Elements = ReactiveUI.Elements
+local Pipe = ReactiveUI.Pipe
 
 -- ==========================================================
 -- Tab Button Component
+-- Uses self:bind() for reactive updates to unread counts
 -- ==========================================================
 
 local TabButton = ReactiveUI.Component.define({
@@ -24,9 +30,10 @@ local TabButton = ReactiveUI.Component.define({
         y = 0,
         width = 50,
         height = 20,
-        text = "",
+        baseText = "",       -- Base display text (channel name or username)
         channel = nil,
         username = nil,
+        unreadKey = nil,     -- Key in unreadMessages state (e.g., "local" or "pm:username")
         isActive = false,
         color = { r = 1, g = 1, b = 1 },
         onClick = nil,
@@ -50,7 +57,7 @@ local TabButton = ReactiveUI.Component.define({
             y = props.y,
             width = props.width,
             height = props.height,
-            text = props.text,
+            text = props.baseText,
             font = UIFont.Small,
             backgroundColor = bgColor,
             textColor = textColor,
@@ -72,6 +79,18 @@ local TabButton = ReactiveUI.Component.define({
         -- Store references for click handlers
         btn.channel = props.channel
         btn.username = props.username
+        
+        -- Use self:bind() to reactively update unread badge
+        -- This binding is automatically cleaned up when component is destroyed
+        if not props.isActive and props.unreadKey then
+            self:bind("unreadMessages", ChatUI.State)
+                :pipe("default", {})
+                :toCallback(function(unreadMessages)
+                    local count = unreadMessages[props.unreadKey] or 0
+                    local badge = Pipe.create("unreadCount")(count)
+                    btn:setTitle(props.baseText .. badge)
+                end)
+        end
         
         return btn
     end,
@@ -213,6 +232,9 @@ local _parent = nil
 local _panel = nil
 local _tabComponents = {}
 
+-- State subscription for channel changes (tabs structure)
+local _stateSubscription = nil
+
 function Tabs.create(window)
     _parent = window
     local th = window:titleBarHeight()
@@ -230,10 +252,11 @@ function Tabs.create(window)
     
     Tabs.refresh()
     
-    -- Subscribe to state changes
-    ChatUI.State:subscribe("currentChannel", function() Tabs.refresh() end)
-    ChatUI.State:subscribe("unreadMessages", function() Tabs.refresh() end)
-    ChatUI.State:subscribe("settingsVersion", function() Tabs.refresh() end)
+    -- Subscribe to state changes that affect tab structure
+    -- Individual TabButtons handle their own unread count bindings via self:bind()
+    _stateSubscription = ChatUI.State:subscribe({"currentChannel", "settingsVersion"}, function()
+        Tabs.refresh()
+    end)
     
     return _panel
 end
@@ -241,7 +264,14 @@ end
 function Tabs.refresh()
     if not _panel or not _parent then return end
     
-    -- Clear existing components
+    -- Destroy existing components to clean up their bindings
+    for _, component in pairs(_tabComponents) do
+        if component.destroy then
+            component:destroy()
+        end
+    end
+    
+    -- Clear panel and component tracking
     _panel:clearChildren()
     _tabComponents = {}
     
@@ -249,7 +279,6 @@ function Tabs.refresh()
     local conversations = (ChatSystem.Client and ChatSystem.Client.GetConversations()) or {}
     local currentChannel = ChatUI.State:get("currentChannel")
     local activeConv = ChatSystem.Client and ChatSystem.Client.activeConversation
-    local unread = ChatUI.State:get("unreadMessages") or {}
     
     local tabX = 0
     local tabW = 50
@@ -258,21 +287,19 @@ function Tabs.refresh()
     -- Channel tabs
     for _, channel in ipairs(channels) do
         local isActive = (channel == currentChannel and not activeConv)
-        local tabName = ChatUI.ChannelShortNames[channel] or channel:sub(1, 5)
-        local unreadCount = unread[channel] or 0
-        
-        if unreadCount > 0 and not isActive then
-            tabName = tabName .. "(" .. (unreadCount > 9 and "9+" or unreadCount) .. ")"
-        end
+        -- Use channelName pipe for base display name
+        local tabName = Pipe.create("channelName")(channel)
         
         local color = (ChatSystem.ChannelColors and ChatSystem.ChannelColors[channel]) or { r = 1, g = 1, b = 1 }
         
+        -- TabButton uses self:bind() to handle unread counts reactively
         local tabBtn = TabButton({
             x = tabX,
             y = 0,
             width = tabW,
             height = tabH,
-            text = tabName,
+            baseText = tabName,
+            unreadKey = channel,  -- Key for unread lookup
             channel = channel,
             isActive = isActive,
             color = color,
@@ -289,20 +316,17 @@ function Tabs.refresh()
     for username, _ in pairs(conversations) do
         local pmKey = "pm:" .. username
         local isActive = (activeConv == username)
-        local displayName = #username > 5 and username:sub(1, 5) .. ".." or username
-        local unreadCount = unread[pmKey] or 0
+        -- Use usernameDisplay pipe for truncated name
+        local displayName = Pipe.create("usernameDisplay")(username)
         
-        if unreadCount > 0 and not isActive then
-            displayName = displayName .. "(" .. (unreadCount > 9 and "9+" or unreadCount) .. ")"
-        end
-        
-        -- PM tab button
+        -- PM tab button - uses self:bind() for reactive unread updates
         local pmTab = TabButton({
             x = tabX,
             y = 0,
             width = tabW,
             height = tabH,
-            text = displayName,
+            baseText = displayName,
+            unreadKey = pmKey,  -- Key for unread lookup (e.g., "pm:username")
             channel = "private",
             username = username,
             isActive = isActive,

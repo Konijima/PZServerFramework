@@ -247,6 +247,40 @@ function ComponentInstance:removeFromUIManager()
     self._state:clearSubscribers()
 end
 
+--- Destroy the component and clean up all resources
+--- This is the preferred way to clean up a component that's no longer needed
+function ComponentInstance:destroy()
+    -- Call onDestroy hook
+    if self._definition.onDestroy then
+        self._definition.onDestroy(self)
+    end
+    
+    -- Destroy all children first
+    for _, child in ipairs(self._children) do
+        if child.destroy then
+            child:destroy()
+        end
+    end
+    self._children = {}
+    
+    -- Remove from UI manager if mounted
+    if self._element and self._mounted then
+        self._element:removeFromUIManager()
+        self._mounted = false
+    end
+    
+    -- Clean up all bindings (unsubscribes from state stores)
+    self._bindings:unbindAll()
+    
+    -- Clear state subscribers
+    self._state:clearSubscribers()
+    
+    -- Clear references
+    self._element = nil
+    self._props = nil
+    self._definition = nil
+end
+
 --- Set visibility
 ---@param visible boolean
 function ComponentInstance:setVisible(visible)
@@ -329,11 +363,14 @@ function ComponentInstance:removeChild(child)
     end
 end
 
---- Create a binding from component state to element property
+--- Create a binding from state to element property
+--- If no store is provided, uses the component's internal state
 ---@param key string State key to bind
+---@param store ReactiveUI.StateStore? Optional external state store (defaults to component state)
 ---@return ReactiveUI.BindingInstance
-function ComponentInstance:bind(key)
-    return self._bindings:bind(self._state, key)
+function ComponentInstance:bind(key, store)
+    store = store or self._state
+    return self._bindings:bind(store, key)
 end
 
 --- Create a computed binding from multiple state keys

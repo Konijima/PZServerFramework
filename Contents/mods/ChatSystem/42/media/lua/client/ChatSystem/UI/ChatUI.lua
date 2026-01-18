@@ -17,6 +17,7 @@ require "ChatSystem/Client"
 
 -- Load UI components
 require "ChatSystem/UI/ChatState"
+require "ChatSystem/UI/ChatPipes"
 require "ChatSystem/UI/Components/ChatWindow"
 require "ChatSystem/UI/Components/ChatTabs"
 require "ChatSystem/UI/Components/ChatMessages"
@@ -190,6 +191,14 @@ function ChatUI.Create()
         -- Force refresh tabs
         if ChatUI.instance then
             ChatUI.State:set("settingsVersion", (ChatUI.State:get("settingsVersion") or 0) + 1)
+        end
+    end)
+    
+    ChatSystem.Events.OnConversationsChanged:Add(function()
+        print("[ChatSystem] ReactiveUI: Conversations changed")
+        -- Refresh tabs to show new/removed PM conversations
+        if ChatUI.Components and ChatUI.Components.ChatTabs then
+            ChatUI.Components.ChatTabs.refresh()
         end
     end)
     

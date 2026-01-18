@@ -130,23 +130,34 @@ function StateStore:batch(fn)
     end
 end
 
---- Subscribe to changes on a specific key
----@param key string The key to watch
+--- Subscribe to changes on one or more keys
+---@param keys string|table A single key string or array of keys to watch
 ---@param callback function Callback(newValue, oldValue, key)
 ---@return function Unsubscribe function
-function StateStore:subscribe(key, callback)
-    if not self._subscribers[key] then
-        self._subscribers[key] = {}
+function StateStore:subscribe(keys, callback)
+    -- Support both single key (string) and array of keys (table)
+    if type(keys) == "string" then
+        keys = {keys}
     end
     
-    table.insert(self._subscribers[key], callback)
+    -- Subscribe to each key
+    for _, key in ipairs(keys) do
+        if not self._subscribers[key] then
+            self._subscribers[key] = {}
+        end
+        table.insert(self._subscribers[key], callback)
+    end
     
-    -- Return unsubscribe function
+    -- Return unsubscribe function that removes callback from all keys
     return function()
-        for i, cb in ipairs(self._subscribers[key]) do
-            if cb == callback then
-                table.remove(self._subscribers[key], i)
-                break
+        for _, key in ipairs(keys) do
+            if self._subscribers[key] then
+                for i, cb in ipairs(self._subscribers[key]) do
+                    if cb == callback then
+                        table.remove(self._subscribers[key], i)
+                        break
+                    end
+                end
             end
         end
     end

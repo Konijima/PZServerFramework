@@ -1,6 +1,9 @@
 --[[
     ChatWindow Component - Main chat window
     Built with ReactiveUI framework
+    
+    This module creates and manages the main chat window container.
+    Uses direct state subscriptions for reactive behavior.
 ]]
 
 require "ISUI/ISCollapsableWindow"
@@ -22,6 +25,7 @@ local _tabs = nil
 local _messages = nil
 local _input = nil
 local _typing = nil
+local _stateSubscriptions = {}
 
 function ChatWindow.create(props)
     props = props or {}
@@ -47,17 +51,21 @@ function ChatWindow.create(props)
     ChatWindow._createChildren(_window)
     ChatWindow._setupBehaviors(_window)
     
-    -- Subscribe to state
-    ChatUI.State:subscribe("focused", function(focused)
+    -- Subscribe to state changes for reactive behavior
+    -- Direct state subscriptions - cleaner than binding manager for simple callbacks
+    
+    -- Focus/unfocus behavior
+    _stateSubscriptions.focused = ChatUI.State:subscribe("focused", function(focused)
         if focused then ChatWindow._focus() else ChatWindow._unfocus() end
     end)
     
-    ChatUI.State:subscribe("locked", function(locked)
+    -- Lock state behavior
+    _stateSubscriptions.locked = ChatUI.State:subscribe("locked", function(locked)
         ChatWindow._updateLockState(locked)
     end)
     
-    -- Reset opacity when fade is disabled
-    ChatUI.State:subscribe("fadeEnabled", function(enabled)
+    -- Fade enabled behavior
+    _stateSubscriptions.fadeEnabled = ChatUI.State:subscribe("fadeEnabled", function(enabled)
         if not enabled and _window then
             _window.backgroundColor.a = ChatUI.State:get("maxOpaque")
             ChatUI.State:set("fadeTimer", 0)

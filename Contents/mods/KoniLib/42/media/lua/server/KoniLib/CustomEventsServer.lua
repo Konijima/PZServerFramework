@@ -72,6 +72,9 @@ local function checkPlayerChanges()
         if not currentOnline[username] then
             Log.Print("Events", "Player Quit detected: " .. tostring(username))
             
+            -- Clear from session tracking so rejoining is treated as a fresh join
+            sessionPlayers[username] = nil
+            
             -- Trigger Server-side Event
             if KoniLib.Events and KoniLib.Events.OnPlayerQuit then
                 KoniLib.Events.OnPlayerQuit:Trigger(username)

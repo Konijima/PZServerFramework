@@ -1,10 +1,14 @@
 --[[
     ChatMessages Component - Message display
     Built with ReactiveUI framework
+    
+    This module creates and manages the chat message display panel.
+    Uses direct state subscriptions for reactive updates.
 ]]
 
 require "ReactiveUI/Client"
 require "ChatSystem/UI/ChatState"
+require "ChatSystem/UI/ChatPipes"
 
 ChatUI = ChatUI or {}
 ChatUI.Components = ChatUI.Components or {}
@@ -12,7 +16,12 @@ ChatUI.Components.ChatMessages = {}
 ChatUI.Messages = {}
 
 local Elements = ReactiveUI.Elements
+local Pipe = ReactiveUI.Pipe
 local Messages = ChatUI.Components.ChatMessages
+
+-- Module-level panel reference and state subscription
+local _panel = nil
+local _stateSubscription = nil
 
 function Messages.create(window)
     local th = window:titleBarHeight()
@@ -26,7 +35,7 @@ function Messages.create(window)
     local h = window.height - y - entryH - bottomPad - pad - typingH
     
     -- Elements.RichText auto-initializes
-    local panel = Elements.RichText({
+    _panel = Elements.RichText({
         x = pad,
         y = y,
         width = window.width - pad * 2,
@@ -38,16 +47,16 @@ function Messages.create(window)
         backgroundColor = { r = 0, g = 0, b = 0, a = 0 },
         borderColor = { r = 0, g = 0, b = 0, a = 0 },
     })
-    panel.autosetheight = false
-    panel.background = false
-    panel.clip = true
-    panel.marginTop = 5
-    panel.marginBottom = 5
-    panel._needsScrollToBottom = false
+    _panel.autosetheight = false
+    _panel.background = false
+    _panel.clip = true
+    _panel.marginTop = 5
+    _panel.marginBottom = 5
+    _panel._needsScrollToBottom = false
     
     -- Hook prerender to scroll to bottom after pagination is computed
-    local origPrerender = panel.prerender
-    panel.prerender = function(self)
+    local origPrerender = _panel.prerender
+    _panel.prerender = function(self)
         if origPrerender then origPrerender(self) end
         if self._needsScrollToBottom and self.vscroll then
             self.vscroll:setCurrentValue(self.vscroll.maxValue or 0)
@@ -56,23 +65,24 @@ function Messages.create(window)
     end
     
     -- When clicking on messages panel, schedule input re-focus
-    local origMouseDown = panel.onMouseDown
-    panel.onMouseDown = function(self, x, y)
+    local origMouseDown = _panel.onMouseDown
+    _panel.onMouseDown = function(self, x, y)
         if ChatUI.State:get("focused") then
             ChatUI.Components.ChatWindow._refocusNextFrame = true
         end
         if origMouseDown then origMouseDown(self, x, y) end
     end
     
-    -- Subscribe to state changes for automatic rebuilds
-    ChatUI.State:subscribe("messages", function() Messages.rebuild(panel) end)
-    ChatUI.State:subscribe("showTimestamp", function() Messages.rebuild(panel) end)
-    ChatUI.State:subscribe("chatFont", function() Messages.rebuild(panel) end)
+    -- Subscribe to state changes that affect message display
+    _stateSubscription = ChatUI.State:subscribe({"messages", "showTimestamp", "chatFont"}, function()
+        Messages.rebuild()
+    end)
     
-    return panel
+    return _panel
 end
 
 function Messages.rebuild(panel)
+    panel = panel or _panel
     if not panel then return end
     
     local messages = ChatUI.State:get("messages") or {}
@@ -81,7 +91,6 @@ function Messages.rebuild(panel)
     local showTimestamp = ChatUI.State:get("showTimestamp")
     local fontName = ChatUI.State:get("chatFont") or "medium"
     local font = ChatUI.FontSizes[fontName] or UIFont.Medium
-    local myUsername = getPlayer() and getPlayer():getUsername() or ""
     
     panel:setText("")
     -- Must set both font and defaultFont for ISRichTextPanel to work properly
@@ -124,10 +133,10 @@ end
 function Messages.formatMessage(msg, showTimestamp)
     local result = ""
     
-    -- Timestamp [HH:MM] - gray
+    -- Timestamp [HH:MM] - gray - using chatTimestamp pipe
     if showTimestamp and msg.timestamp then
-        local time = os.date("%H:%M", (tonumber(msg.timestamp) or 0) / 1000)
-        result = result .. " <RGB:0.5,0.5,0.5> [" .. tostring(time) .. "]"
+        local formattedTime = Pipe.create("chatTimestamp")(msg.timestamp)
+        result = result .. " <RGB:0.5,0.5,0.5> " .. formattedTime
     end
     
     -- Handle special message types (emotes and system messages)
@@ -142,9 +151,9 @@ function Messages.formatMessage(msg, showTimestamp)
         return result
     end
     
-    -- Regular message: Author name colored by role
+    -- Regular message: Author name colored by role (using roleColor pipe)
     local msgAuthor = type(msg.author) == "string" and msg.author or tostring(msg.author or "???")
-    local roleColor = Messages.getRoleColor(msg.metadata and msg.metadata.role)
+    local roleColor = Pipe.create("roleColor")(msg.metadata and msg.metadata.role)
     result = result .. " <SPACE> <RGB:" .. string.format("%.1f,%.1f,%.1f", roleColor.r, roleColor.g, roleColor.b) .. "> " .. msgAuthor .. ":"
     
     -- Message text in white
@@ -250,10 +259,7 @@ function ChatUI.Messages.add(message)
 end
 
 function ChatUI.Messages.rebuild()
-    local messagesPanel = ChatUI.Components.ChatWindow.getMessages()
-    if messagesPanel then
-        Messages.rebuild(messagesPanel)
-    end
+    Messages.rebuild()
 end
 
 print("[ChatSystem] ChatMessages component loaded (ReactiveUI)")

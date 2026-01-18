@@ -96,6 +96,7 @@ if KoniLib and KoniLib.Event then
     ChatSystem.Events.OnTypingChanged = KoniLib.Event.new("ChatSystem_OnTypingChanged")
     ChatSystem.Events.OnSettingsChanged = KoniLib.Event.new("ChatSystem_OnSettingsChanged")
     ChatSystem.Events.OnPlayersUpdated = KoniLib.Event.new("ChatSystem_OnPlayersUpdated")
+    ChatSystem.Events.OnConversationsChanged = KoniLib.Event.new("ChatSystem_OnConversationsChanged")
 else
     print("[ChatSystem] Error: KoniLib.Event not found!")
 end

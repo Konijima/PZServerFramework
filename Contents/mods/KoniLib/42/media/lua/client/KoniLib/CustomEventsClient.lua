@@ -6,10 +6,12 @@ local MP = require("KoniLib/MP")
 -- Events are defined in shared/KoniLib/CustomEvents.lua and registered using KoniLib/Event.lua
 
 local hasNetworkFired = false
-local initializedPlayers = {}
+
+-- Forward declaration for reset function
+local onTickCheck
 
 ---Logic to trigger OnNetworkAvailable
-local function onTickCheck()
+onTickCheck = function()
     if hasNetworkFired then return end
     
     local player = getSpecificPlayer(0)
@@ -29,27 +31,22 @@ local function onTickCheck()
     end
 end
 
----Logic to trigger OnPlayerRespawn
+---Reset client state when returning to main menu or disconnecting
+local function resetClientState()
+    hasNetworkFired = false
+    Log.Print("Events", "Client state reset (disconnect/menu)")
+    -- Re-add the tick check for next game session
+    Events.OnTick.Add(onTickCheck)
+end
+
+---Logic to trigger OnPlayerInit (always as join, isRespawn kept for API compatibility)
 local function onCreatePlayer(playerIndex, player)
-    -- OnCreatePlayer key-point:
-    -- On Client: fires for each player created (local and remote potentially, but usually local are prioritized).
-    -- Ensure we process local players for respawn logic.
     if player and not player:isLocalPlayer() then return end
     
-    -- OnCreatePlayer fires on initial login AND subsequent respawns.
-    local isRespawn = false
-    if not initializedPlayers[playerIndex] then
-        -- First time we see this player index -> This is the initial Join
-        initializedPlayers[playerIndex] = true
-        isRespawn = false
-        
-        local name = player and player:getUsername() or "Unknown"
-        Log.Print("Events", "Initial player creation detected (Join) for Player " .. tostring(playerIndex) .. " ("..name..")")
-    else
-        -- We have seen this index before -> This must be a respawn
-        isRespawn = true
-        Log.Print("Events", "Respawn detected for Player " .. tostring(playerIndex))
-    end
+    local username = player and player:getUsername() or "Unknown"
+    local isRespawn = false  -- Always false - we treat all player creations as joins
+    
+    Log.Print("Events", "Player joined: " .. tostring(playerIndex) .. " ("..username..")")
 
     if KoniLib.Events and KoniLib.Events.OnPlayerInit then
         KoniLib.Events.OnPlayerInit:Trigger(playerIndex, player, isRespawn)
@@ -60,6 +57,10 @@ end
 
 Events.OnTick.Add(onTickCheck)
 Events.OnCreatePlayer.Add(onCreatePlayer)
+
+-- Reset state when player returns to main menu (quit game) or disconnects
+Events.OnMainMenuEnter.Add(resetClientState)
+Events.OnDisconnect.Add(resetClientState)
 
 -- Handle Remote Player Init (Broadcasted by Server)
 MP.Register("KoniLib", "PlayerInit", function(player, args)
