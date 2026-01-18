@@ -197,6 +197,8 @@ function ChatSystem.LoadSandboxSettings(silent)
         print("  - Yell range: " .. ChatSystem.Settings.yellRange)
         print("  - Global chat: " .. tostring(ChatSystem.Settings.enableGlobalChat))
         print("  - Private messages: " .. tostring(ChatSystem.Settings.enablePrivateMessages))
+        print("  - Roleplay mode: " .. tostring(ChatSystem.Settings.roleplayMode))
+        print("  - Slow mode: " .. tostring(ChatSystem.Settings.chatSlowMode) .. "s")
     end
     
     -- Trigger event if settings changed

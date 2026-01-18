@@ -58,8 +58,9 @@ function Messages.create(window)
     local origPrerender = _panel.prerender
     _panel.prerender = function(self)
         if origPrerender then origPrerender(self) end
-        if self._needsScrollToBottom and self.vscroll then
-            self.vscroll:setCurrentValue(self.vscroll.maxValue or 0)
+        if self._needsScrollToBottom then
+            -- Use setYScroll with large negative value to scroll to bottom
+            self:setYScroll(-10000)
             self._needsScrollToBottom = false
         end
     end
@@ -153,6 +154,14 @@ function Messages.formatMessage(msg, showTimestamp)
     
     -- Regular message: Author name colored by role (using roleColor pipe)
     local msgAuthor = type(msg.author) == "string" and msg.author or tostring(msg.author or "???")
+    
+    -- In roleplay mode, use character name if available
+    if ChatSystem.Settings and ChatSystem.Settings.roleplayMode then
+        if msg.metadata and msg.metadata.characterName then
+            msgAuthor = msg.metadata.characterName
+        end
+    end
+    
     local roleColor = Pipe.create("roleColor")(msg.metadata and msg.metadata.role)
     result = result .. " <SPACE> <RGB:" .. string.format("%.1f,%.1f,%.1f", roleColor.r, roleColor.g, roleColor.b) .. "> " .. msgAuthor .. ":"
     
@@ -213,7 +222,8 @@ function ChatUI.Messages.add(message)
     end
     table.insert(messages, message)
     
-    while #messages > ChatUI.Constants.MAX_MESSAGES do
+    local maxMessages = (ChatSystem.Settings and ChatSystem.Settings.maxMessagesStored) or 200
+    while #messages > maxMessages do
         table.remove(messages, 1)
     end
     

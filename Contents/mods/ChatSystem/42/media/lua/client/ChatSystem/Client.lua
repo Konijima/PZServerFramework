@@ -33,6 +33,7 @@ Client.isTyping = false
 Client.typingChannel = nil
 Client.typingTarget = nil  -- Target for PM typing
 Client.lastTypingTime = 0
+Client.lastMessageSentTime = 0  -- For slow mode rate limiting
 
 -- Private conversation state
 Client.conversations = {}  -- { [username] = { messages = {}, unread = 0 } }

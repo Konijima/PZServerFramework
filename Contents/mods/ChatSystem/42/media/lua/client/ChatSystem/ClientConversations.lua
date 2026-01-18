@@ -57,16 +57,52 @@ end
 
 --- Send a message directly using the current channel (no prefix parsing)
 ---@param text string The message text (already cleaned)
+---@return boolean success Whether the message was sent (false if rate limited)
 function Module.SendMessageDirect(text)
     local Client = ChatSystem.Client
     if not Client.isConnected then
         print("[ChatSystem] Client: Not connected to chat server")
-        return
+        return false
     end
     
-    if not text or text == "" then return end
+    if not text or text == "" then return false end
     
     local channel = Client.currentChannel
+    
+    -- Check slow mode rate limiting (global channel only, exclude staff/admin)
+    local slowMode = ChatSystem.Settings and ChatSystem.Settings.chatSlowMode or 0
+    if slowMode > 0 and channel == ChatSystem.ChannelType.GLOBAL then
+        -- Check if player is staff or admin (exempt from slow mode)
+        local player = getPlayer()
+        local isExempt = false
+        if player then
+            local accessLevel = player.getAccessLevel and player:getAccessLevel()
+            if not accessLevel or accessLevel == "" then
+                accessLevel = getAccessLevel and getAccessLevel()
+            end
+            if accessLevel and accessLevel ~= "" then
+                local lowerAccess = string.lower(accessLevel)
+                if lowerAccess == "admin" or lowerAccess == "moderator" or lowerAccess == "gm" or lowerAccess == "observer" then
+                    isExempt = true
+                end
+            end
+        end
+        
+        if not isExempt then
+            local now = getTimestampMs()
+            local timeSinceLastMessage = (now - Client.lastMessageSentTime) / 1000  -- Convert to seconds
+            if timeSinceLastMessage < slowMode then
+                local waitTime = math.ceil(slowMode - timeSinceLastMessage)
+                -- Add local system message to notify user (client-only, not broadcast)
+                if ChatUI and ChatUI.Messages and ChatUI.Messages.add then
+                    local msg = ChatSystem.CreateSystemMessage("Slow mode: Please wait " .. waitTime .. " second(s) before sending another message.")
+                    ChatUI.Messages.add(msg)
+                end
+                return false
+            end
+            Client.lastMessageSentTime = now
+        end
+    end
     local metadata = {}
     
     -- Handle private message conversation

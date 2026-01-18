@@ -93,6 +93,25 @@ local function OnVanillaMessage(message, tabID)
         msg = ChatSystem.CreateMessage(channel, author or "Unknown", text)
     end
     
+    -- In roleplay mode, try to get character name for local players
+    if ChatSystem.Settings and ChatSystem.Settings.roleplayMode and author and not isSystem then
+        local otherPlayer = getPlayerByUsername and getPlayerByUsername(author)
+        if otherPlayer then
+            local descriptor = otherPlayer:getDescriptor()
+            if descriptor then
+                local forename = descriptor:getForename() or ""
+                local surname = descriptor:getSurname() or ""
+                local characterName = forename
+                if surname ~= "" then
+                    characterName = characterName .. " " .. surname
+                end
+                if characterName ~= "" then
+                    msg.metadata.characterName = characterName
+                end
+            end
+        end
+    end
+    
     if color then
         msg.color = color
     end

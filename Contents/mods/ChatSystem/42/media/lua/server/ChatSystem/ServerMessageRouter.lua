@@ -42,14 +42,6 @@ function Module.ValidateIncomingMessage(player, data)
         return false, "Safehouse chat is disabled"
     end
     
-    if channel == ChatSystem.ChannelType.STAFF and not ChatSystem.Settings.enableStaffChat then
-        return false, "Staff chat is disabled"
-    end
-
-    if channel == ChatSystem.ChannelType.ADMIN and not ChatSystem.Settings.enableAdminChat then
-        return false, "Admin chat is disabled"
-    end
-
     if channel == ChatSystem.ChannelType.PRIVATE and not ChatSystem.Settings.enablePrivateMessages then
         return false, "Private messages are disabled"
     end
@@ -76,19 +68,22 @@ function Module.ValidateIncomingMessage(player, data)
         return false, "You don't have a safehouse"
     end
 
-    -- Check slow mode (skip for admins)
-    if ChatSystem.Settings.chatSlowMode > 0 and not pData.isAdmin then
-        local now = getTimestampMs()
-        local lastTime = Server.lastMessageTime[username] or 0
-        local cooldownMs = ChatSystem.Settings.chatSlowMode * 1000
+    -- Check slow mode (global channel only, skip for staff/admin)
+    if ChatSystem.Settings.chatSlowMode > 0 and channel == ChatSystem.ChannelType.GLOBAL then
+        -- Skip for staff and admin
+        if not pData.isAdmin and not pData.isStaff then
+            local now = getTimestampMs()
+            local lastTime = Server.lastMessageTime[username] or 0
+            local cooldownMs = ChatSystem.Settings.chatSlowMode * 1000
 
-        if now - lastTime < cooldownMs then
-            local remaining = math.ceil((cooldownMs - (now - lastTime)) / 1000)
-            return false, "Slow mode: wait " .. remaining .. " second(s)"
+            if now - lastTime < cooldownMs then
+                local remaining = math.ceil((cooldownMs - (now - lastTime)) / 1000)
+                return false, "Slow mode: wait " .. remaining .. " second(s)"
+            end
+
+            -- Update last message time
+            Server.lastMessageTime[username] = now
         end
-
-        -- Update last message time
-        Server.lastMessageTime[username] = now
     end
 
     return true, nil

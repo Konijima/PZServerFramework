@@ -32,6 +32,10 @@ function Input.create(window)
         editable = false,  -- Auto-applied after init
     })
     
+    -- Apply max message length from sandbox settings
+    local maxLength = (ChatSystem.Settings and ChatSystem.Settings.maxMessageLength) or 500
+    entry:setMaxTextLength(maxLength)
+    
     Input._setupHandlers(entry)
     
     return entry
@@ -61,8 +65,17 @@ function Input._setupHandlers(entry)
     end
     
     entry.onTextChange = function()
-        if ChatSystem.Client and ChatSystem.Client.StartTyping then
-            ChatSystem.Client.StartTyping()
+        if not ChatSystem.Client then return end
+        local text = entry:getText() or ""
+        -- Don't show typing indicator when typing a command or when text is empty
+        if text == "" or text:sub(1, 1) == "/" then
+            if ChatSystem.Client.StopTyping then
+                ChatSystem.Client.StopTyping()
+            end
+        else
+            if ChatSystem.Client.StartTyping then
+                ChatSystem.Client.StartTyping()
+            end
         end
     end
 end

@@ -175,6 +175,22 @@ chatSocket:onServer("message", function(player, data, context, ack)
         return
     end
     
+    -- Add character name to metadata for roleplay mode
+    if ChatSystem.Settings.roleplayMode then
+        local descriptor = player:getDescriptor()
+        if descriptor then
+            local forename = descriptor:getForename() or ""
+            local surname = descriptor:getSurname() or ""
+            local characterName = forename
+            if surname ~= "" then
+                characterName = characterName .. " " .. surname
+            end
+            if characterName ~= "" then
+                metadata.characterName = characterName
+            end
+        end
+    end
+    
     -- Build message object
     local message = ChatSystem.CreateMessage(channel, username, text, metadata)
     

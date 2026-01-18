@@ -72,8 +72,8 @@ function Module.GetAvailableChannels()
             table.insert(channels, ChatSystem.ChannelType.SAFEHOUSE)
         end
         
-        -- Check admin (only if admin chat is enabled and player is actual admin)
-        if settings.enableAdminChat then
+        -- Check admin (player must be actual admin)
+        do
             -- Try player method first (may be more up-to-date than global function)
             local accessLevel = player.getAccessLevel and player:getAccessLevel()
             if not accessLevel or accessLevel == "" then
@@ -85,8 +85,8 @@ function Module.GetAvailableChannels()
             end
         end
         
-        -- Check staff (only if staff chat is enabled and player is admin, mod, or GM)
-        if settings.enableStaffChat then
+        -- Check staff (player must be admin, mod, or GM)
+        do
             local isStaff = false
             
             -- Check role capabilities (SeePlayersConnected or AnswerTickets = staff)
