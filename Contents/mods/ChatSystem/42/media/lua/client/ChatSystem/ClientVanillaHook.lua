@@ -3,6 +3,7 @@
 -- Returns a module table to be merged into ChatSystem.Client
 
 require "ChatSystem/Definitions"
+require "ChatSystem/PlayerUtils"
 
 local Module = {}
 
@@ -94,20 +95,12 @@ local function OnVanillaMessage(message, tabID)
     end
     
     -- In roleplay mode, try to get character name for local players
-    if ChatSystem.Settings and ChatSystem.Settings.roleplayMode and author and not isSystem then
-        local otherPlayer = getPlayerByUsername and getPlayerByUsername(author)
+    if ChatSystem.PlayerUtils.IsRoleplayMode() and author and not isSystem then
+        local otherPlayer = ChatSystem.PlayerUtils.GetPlayerByUsername(author)
         if otherPlayer then
-            local descriptor = otherPlayer:getDescriptor()
-            if descriptor then
-                local forename = descriptor:getForename() or ""
-                local surname = descriptor:getSurname() or ""
-                local characterName = forename
-                if surname ~= "" then
-                    characterName = characterName .. " " .. surname
-                end
-                if characterName ~= "" then
-                    msg.metadata.characterName = characterName
-                end
+            local charName = ChatSystem.PlayerUtils.GetCharacterNameFromDescriptor(otherPlayer:getDescriptor())
+            if charName then
+                msg.metadata.characterName = charName
             end
         end
     end

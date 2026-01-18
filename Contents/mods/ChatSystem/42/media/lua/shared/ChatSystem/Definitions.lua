@@ -236,9 +236,19 @@ end
 -- Settings sync timer for live updates
 local settingsCheckTimer = 0
 local SETTINGS_CHECK_INTERVAL = 60 -- Check every ~1 second
+local settingsInitialized = false
 
 -- Periodic check for sandbox settings changes (vanilla game syncs SandboxVars automatically)
 local function OnTick()
+    -- On first tick after game starts, try to load settings if not yet initialized
+    if not settingsInitialized then
+        if SandboxVars and SandboxVars.ChatSystem then
+            ChatSystem.LoadSandboxSettings()
+            settingsInitialized = true
+        end
+        return
+    end
+    
     settingsCheckTimer = settingsCheckTimer + 1
     
     if settingsCheckTimer >= SETTINGS_CHECK_INTERVAL then
@@ -251,8 +261,14 @@ end
 
 -- Load sandbox settings when the game starts
 Events.OnGameStart.Add(function()
-    ChatSystem.LoadSandboxSettings()
-    -- Start periodic checking after initial load
+    -- Try to load immediately, but SandboxVars may not be ready on dedicated servers
+    if SandboxVars and SandboxVars.ChatSystem then
+        ChatSystem.LoadSandboxSettings()
+        settingsInitialized = true
+    else
+        print("[ChatSystem] SandboxVars not ready at OnGameStart, will retry on tick")
+    end
+    -- Start periodic checking (also handles delayed initialization)
     Events.OnTick.Add(OnTick)
 end)
 
