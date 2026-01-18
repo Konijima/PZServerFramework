@@ -74,8 +74,10 @@ function Client.Connect()
         end)
         
         -- Show welcome message with keybinding
+        -- Use current channel so it appears in whatever channel is active
         local chatKey = Keyboard.getKeyName(getCore():getKey("Toggle chat"))
-        local welcomeMsg = ChatSystem.CreateSystemMessage("Press '" .. chatKey .. "' to open chat. Use ALL CAPS or start with ! to yell. Type /help for commands.")
+        local currentChannel = Client.currentChannel or ChatSystem.ChannelType.GLOBAL
+        local welcomeMsg = ChatSystem.CreateSystemMessage("Press '" .. chatKey .. "' to open chat. Use ALL CAPS or start with ! to yell. Type /help for commands.", currentChannel)
         Client.OnMessageReceived(welcomeMsg)
     end)
     
@@ -296,18 +298,26 @@ end
 local function OnRemotePlayerInit(username, isRespawn)
     if not username then return end
     
+    -- Only show messages if chat is fully connected
+    if not Client.isConnected then return end
+    
     -- Don't show message for ourselves
     local myUsername = getPlayer() and getPlayer():getUsername() or ""
     if username == myUsername then return end
     
+    -- Get display name (character name if roleplay mode)
+    local displayName = ChatSystem.PlayerUtils.GetDisplayNameByUsername(username)
+    
     local text
     if isRespawn then
-        text = username .. " has respawned."
+        text = displayName .. " has respawned."
     else
-        text = username .. " has joined the server."
+        text = displayName .. " has joined the server."
     end
     
-    local msg = ChatSystem.CreateSystemMessage(text, ChatSystem.ChannelType.GLOBAL)
+    -- Use current channel so message only appears in player's active channel view
+    local currentChannel = Client.currentChannel or ChatSystem.ChannelType.GLOBAL
+    local msg = ChatSystem.CreateSystemMessage(text, currentChannel)
     msg.color = { r = 0.5, g = 1, b = 0.5 } -- Light green
     
     -- Store message
@@ -327,10 +337,18 @@ end
 local function OnRemotePlayerQuit(username)
     if not username then return end
     
+    -- Only show messages if chat is fully connected
+    if not Client.isConnected then return end
+    
+    -- Get display name BEFORE clearing indicators (player may still be accessible)
+    local displayName = ChatSystem.PlayerUtils.GetDisplayNameByUsername(username)
+    
     -- Clear any typing indicators for this player
     Client.ClearTypingIndicator(username)
     
-    local msg = ChatSystem.CreateSystemMessage(username .. " has left the server.", ChatSystem.ChannelType.GLOBAL)
+    -- Use current channel so message only appears in player's active channel view
+    local currentChannel = Client.currentChannel or ChatSystem.ChannelType.GLOBAL
+    local msg = ChatSystem.CreateSystemMessage(displayName .. " has left the server.", currentChannel)
     msg.color = { r = 0.6, g = 0.6, b = 0.6 } -- Gray
     
     -- Store message
@@ -347,7 +365,7 @@ local function OnRemotePlayerQuit(username)
     
     -- If we have a conversation with this player, add a notification message
     if Client.conversations[username] then
-        local pmNotification = ChatSystem.CreateSystemMessage(username .. " is no longer available.", ChatSystem.ChannelType.PRIVATE)
+        local pmNotification = ChatSystem.CreateSystemMessage(displayName .. " is no longer available.", ChatSystem.ChannelType.PRIVATE)
         pmNotification.color = { r = 1, g = 0.6, b = 0.3 } -- Orange
         pmNotification.metadata = { from = username, to = getPlayer():getUsername() }
         
@@ -370,10 +388,18 @@ end
 local function OnRemotePlayerDeath(username, x, y, z)
     if not username then return end
     
+    -- Only show messages if chat is fully connected
+    if not Client.isConnected then return end
+    
+    -- Get display name (character name if roleplay mode)
+    local displayName = ChatSystem.PlayerUtils.GetDisplayNameByUsername(username)
+    
     -- Clear any typing indicators for this player
     Client.ClearTypingIndicator(username)
     
-    local msg = ChatSystem.CreateSystemMessage(username .. " has died.", ChatSystem.ChannelType.GLOBAL)
+    -- Use current channel so message only appears in player's active channel view
+    local currentChannel = Client.currentChannel or ChatSystem.ChannelType.GLOBAL
+    local msg = ChatSystem.CreateSystemMessage(displayName .. " has died.", currentChannel)
     msg.color = { r = 1, g = 0.3, b = 0.3 } -- Red
     
     -- Store message

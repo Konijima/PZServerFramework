@@ -3,6 +3,7 @@
 -- Returns a module table to be merged into ChatSystem.Client
 
 require "ChatSystem/Definitions"
+require "KoniLib/Player"
 
 local Module = {}
 
@@ -73,62 +74,13 @@ function Module.GetAvailableChannels()
         end
         
         -- Check admin (player must be actual admin)
-        do
-            -- Try player method first (may be more up-to-date than global function)
-            local accessLevel = player.getAccessLevel and player:getAccessLevel()
-            if not accessLevel or accessLevel == "" then
-                accessLevel = getAccessLevel and getAccessLevel()
-            end
-            -- Only "admin" access level can see admin chat (not moderator, observer, etc.)
-            if accessLevel and accessLevel ~= "" and string.lower(accessLevel) == "admin" then
-                table.insert(channels, ChatSystem.ChannelType.ADMIN)
-            end
+        if KoniLib.Player.IsAdmin(player) then
+            table.insert(channels, ChatSystem.ChannelType.ADMIN)
         end
         
         -- Check staff (player must be admin, mod, or GM)
-        do
-            local isStaff = false
-            
-            -- Check role capabilities (SeePlayersConnected or AnswerTickets = staff)
-            local role = player:getRole()
-            if role and Capability then
-                -- Admin power means staff
-                local success, hasAdmin = pcall(function()
-                    return role:hasAdminPower()
-                end)
-                if success and hasAdmin then
-                    isStaff = true
-                end
-                
-                -- Staff capabilities
-                if not isStaff then
-                    local success2, hasStaffCap = pcall(function()
-                        return role:hasCapability(Capability.SeePlayersConnected) or
-                               role:hasCapability(Capability.AnswerTickets)
-                    end)
-                    if success2 and hasStaffCap then
-                        isStaff = true
-                    end
-                end
-            end
-            
-            -- Fallback: check specific staff roles (not observer)
-            if not isStaff then
-                -- Try player method first (may be more up-to-date than global function)
-                local accessLevel = player.getAccessLevel and player:getAccessLevel()
-                if not accessLevel or accessLevel == "" then
-                    accessLevel = getAccessLevel and getAccessLevel()
-                end
-                if accessLevel and accessLevel ~= "" then
-                    local level = string.lower(accessLevel)
-                    -- Staff roles: admin, moderator, overseer, gm (NOT observer)
-                    isStaff = level == "admin" or level == "moderator" or level == "overseer" or level == "gm"
-                end
-            end
-            
-            if isStaff then
-                table.insert(channels, ChatSystem.ChannelType.STAFF)
-            end
+        if KoniLib.Player.IsStaff(player) then
+            table.insert(channels, ChatSystem.ChannelType.STAFF)
         end
     end
     

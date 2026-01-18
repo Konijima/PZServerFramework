@@ -3,6 +3,7 @@
 -- Returns a module table to be merged into ChatSystem.Client
 
 require "ChatSystem/Definitions"
+require "KoniLib/Player"
 
 local Module = {}
 
@@ -74,19 +75,7 @@ function Module.SendMessageDirect(text)
     if slowMode > 0 and channel == ChatSystem.ChannelType.GLOBAL then
         -- Check if player is staff or admin (exempt from slow mode)
         local player = getPlayer()
-        local isExempt = false
-        if player then
-            local accessLevel = player.getAccessLevel and player:getAccessLevel()
-            if not accessLevel or accessLevel == "" then
-                accessLevel = getAccessLevel and getAccessLevel()
-            end
-            if accessLevel and accessLevel ~= "" then
-                local lowerAccess = string.lower(accessLevel)
-                if lowerAccess == "admin" or lowerAccess == "moderator" or lowerAccess == "gm" or lowerAccess == "observer" then
-                    isExempt = true
-                end
-            end
-        end
+        local isExempt = player and KoniLib.Player.IsStaff(player)
         
         if not isExempt then
             local now = getTimestampMs()
@@ -94,8 +83,10 @@ function Module.SendMessageDirect(text)
             if timeSinceLastMessage < slowMode then
                 local waitTime = math.ceil(slowMode - timeSinceLastMessage)
                 -- Add local system message to notify user (client-only, not broadcast)
+                -- Use current channel so it appears in the channel they're viewing
                 if ChatUI and ChatUI.Messages and ChatUI.Messages.add then
-                    local msg = ChatSystem.CreateSystemMessage("Slow mode: Please wait " .. waitTime .. " second(s) before sending another message.")
+                    local currentChannel = Client.currentChannel or ChatSystem.ChannelType.GLOBAL
+                    local msg = ChatSystem.CreateSystemMessage("Slow mode: Please wait " .. waitTime .. " second(s) before sending another message.", currentChannel)
                     ChatUI.Messages.add(msg)
                 end
                 return false

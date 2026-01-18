@@ -22,13 +22,14 @@ local TYPING_CLEANUP_INTERVAL = 60  -- Every 60 ticks (~1 second at 60 TPS)
 -- ==========================================================
 
 --- Handle received typing indicator
----@param data table { username, channel, isTyping, target }
+---@param data table { username, channel, isTyping, target, displayName? }
 function Module.OnTypingReceived(data)
     local Client = ChatSystem.Client
     local channel = data.channel or ChatSystem.ChannelType.LOCAL
     local username = data.username
     local isTyping = data.isTyping
     local target = data.target  -- For PM typing
+    local displayName = data.displayName or username  -- From server (character name if roleplay)
     
     -- For PM typing, use the username as the key (who is typing to us)
     local trackingKey = channel
@@ -41,8 +42,11 @@ function Module.OnTypingReceived(data)
     end
     
     if isTyping then
-        -- Store timestamp to allow timeout-based cleanup
-        Client.typingPlayers[trackingKey][username] = getTimestampMs()
+        -- Store timestamp and displayName to allow timeout-based cleanup
+        Client.typingPlayers[trackingKey][username] = { 
+            timestamp = getTimestampMs(),
+            displayName = displayName
+        }
     else
         Client.typingPlayers[trackingKey][username] = nil
     end
@@ -54,13 +58,18 @@ end
 
 --- Get list of users typing in a channel
 ---@param channel string
----@return table Array of usernames
+---@return table Array of display names
 function Module.GetTypingUsers(channel)
     local Client = ChatSystem.Client
     local users = {}
     if Client.typingPlayers[channel] then
-        for username, _ in pairs(Client.typingPlayers[channel]) do
-            table.insert(users, username)
+        for username, data in pairs(Client.typingPlayers[channel]) do
+            -- Use displayName from server (character name if roleplay mode, username otherwise)
+            local name = username
+            if type(data) == "table" and data.displayName then
+                name = data.displayName
+            end
+            table.insert(users, name)
         end
     end
     return users
@@ -88,8 +97,9 @@ function Module.CleanupTypingIndicators()
     local now = getTimestampMs()
     
     for channel, players in pairs(Client.typingPlayers) do
-        for username, timestamp in pairs(players) do
-            -- If timestamp is a number (new format), check for timeout
+        for username, data in pairs(players) do
+            -- Get timestamp from data (new format: table with timestamp and characterName)
+            local timestamp = type(data) == "table" and data.timestamp or data
             if type(timestamp) == "number" then
                 if now - timestamp > TYPING_INDICATOR_TIMEOUT then
                     players[username] = nil

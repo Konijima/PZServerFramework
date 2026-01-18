@@ -3,35 +3,26 @@
 if isClient() or not isServer() then return end
 
 require "ChatSystem/CommandAPI"
+require "ChatSystem/PlayerUtils"
+require "KoniLib/Player"
 
 local Commands = ChatSystem.Commands
+local PlayerUtils = ChatSystem.PlayerUtils
+local Player = KoniLib.Player
+local ChannelType = ChatSystem.ChannelType
 -- NOTE: We access ChatSystem.Commands.Server at runtime inside handlers
 -- because it's not available at file load time (Server.lua merges it later)
 
---- Get the display name for a player based on roleplay mode setting
+--- Get the appropriate display name for a player based on channel
+--- Staff and Admin channels always use username for accountability
 ---@param player IsoPlayer
----@return string The display name (character name if roleplay mode, username otherwise)
-local function getPlayerDisplayName(player)
-    if not player then return "Unknown" end
-    
-    -- If roleplay mode is enabled, use character name
-    if ChatSystem.Settings.roleplayMode then
-        local descriptor = player:getDescriptor()
-        if descriptor then
-            local forename = descriptor:getForename() or ""
-            local surname = descriptor:getSurname() or ""
-            local fullName = forename
-            if surname ~= "" then
-                fullName = fullName .. " " .. surname
-            end
-            if fullName ~= "" then
-                return fullName
-            end
-        end
+---@param channel string
+---@return string
+local function getDisplayNameForChannel(player, channel)
+    if channel == ChannelType.STAFF or channel == ChannelType.ADMIN then
+        return Player.GetUsername(player)
     end
-    
-    -- Default to username
-    return player:getUsername() or "Unknown"
+    return PlayerUtils.GetDisplayName(player)
 end
 
 -- ==========================================================
@@ -104,9 +95,9 @@ Commands.Register({
     category = "general",
     handler = function(context)
         local Server = ChatSystem.Commands.Server
-        local onlinePlayers = getOnlinePlayers()
+        local onlinePlayers = Player.GetOnlinePlayers()
         
-        if not onlinePlayers or onlinePlayers:size() == 0 then
+        if #onlinePlayers == 0 then
             -- SP mode
             Server.Reply(context.player, "Online: " .. context.username .. " (you)", nil, context.channel)
             return
@@ -120,11 +111,10 @@ Commands.Register({
             { level = Commands.AccessLevel.PLAYER, label = "Players", players = {} }
         }
         
-        local totalCount = onlinePlayers:size()
+        local totalCount = #onlinePlayers
         
-        for i = 0, totalCount - 1 do
-            local p = onlinePlayers:get(i)
-            local name = p:getUsername()
+        for _, p in ipairs(onlinePlayers) do
+            local name = Player.GetUsername(p)
             local accessLevel = Server.GetPlayerAccessLevel(p)
             
             -- Mark current player
@@ -196,7 +186,7 @@ Commands.Register({
             table.insert(rolls, roll)
         end
         
-        local displayName = getPlayerDisplayName(context.player)
+        local displayName = getDisplayNameForChannel(context.player, context.channel)
         local result = displayName .. " rolled " .. count .. "d" .. sides .. ": "
         if count > 1 then
             result = result .. "[" .. table.concat(rolls, ", ") .. "] = " .. total
@@ -233,7 +223,7 @@ Commands.Register({
             return
         end
         
-        local displayName = getPlayerDisplayName(context.player)
+        local displayName = getDisplayNameForChannel(context.player, context.channel)
         local emoteText = "* " .. displayName .. " " .. action .. " *"
         
         -- Broadcast to the active channel as a styled message
@@ -252,15 +242,14 @@ Commands.Register({
             -- LOCAL: Send to nearby players
             local x, y, z = context.player:getX(), context.player:getY(), context.player:getZ()
             local range = ChatSystem.Settings.localChatRange
-            local onlinePlayers = getOnlinePlayers()
+            local onlinePlayers = Player.GetOnlinePlayers()
             
-            if not onlinePlayers or onlinePlayers:size() == 0 then
+            if #onlinePlayers == 0 then
                 chatSocket:to(context.player):emit("message", msg)
                 return
             end
             
-            for i = 0, onlinePlayers:size() - 1 do
-                local p = onlinePlayers:get(i)
+            for _, p in ipairs(onlinePlayers) do
                 local px, py, pz = p:getX(), p:getY(), p:getZ()
                 if math.abs(pz - z) <= 1 then
                     local dist = math.sqrt((px - x)^2 + (py - y)^2)

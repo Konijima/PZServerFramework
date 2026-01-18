@@ -4,6 +4,7 @@
 
 require "ChatSystem/Definitions"
 require "ChatSystem/CommandAPI"
+require "KoniLib/Player"
 
 -- Load command files
 require "ChatSystem/Commands/GeneralCommands"
@@ -27,9 +28,9 @@ local accessHierarchy = {
     [Commands.AccessLevel.OWNER] = 4,
 }
 
---- Get player's access level
+--- Get player's access level (maps to ChatSystem command levels)
 ---@param player IsoPlayer
----@return string
+---@return string ChatSystem access level (PLAYER, MODERATOR, ADMIN, OWNER)
 function Module.GetPlayerAccessLevel(player)
     if not player then
         return Commands.AccessLevel.PLAYER
@@ -40,12 +41,12 @@ function Module.GetPlayerAccessLevel(player)
         return Commands.AccessLevel.OWNER
     end
     
-    local accessLevel = player:getAccessLevel()
-    if not accessLevel or accessLevel == "" or accessLevel == "None" then
+    local accessLevel = KoniLib.Player.GetAccessLevel(player)
+    if not accessLevel or accessLevel == "none" then
         return Commands.AccessLevel.PLAYER
     end
     
-    -- Map PZ access levels to our system
+    -- Map PZ access levels to our command system
     local mapping = {
         ["admin"] = Commands.AccessLevel.OWNER,
         ["moderator"] = Commands.AccessLevel.MODERATOR,
@@ -54,7 +55,7 @@ function Module.GetPlayerAccessLevel(player)
         ["observer"] = Commands.AccessLevel.MODERATOR,
     }
     
-    return mapping[accessLevel:lower()] or Commands.AccessLevel.PLAYER
+    return mapping[accessLevel] or Commands.AccessLevel.PLAYER
 end
 
 --- Check if player has required access level
@@ -210,10 +211,10 @@ function Module.Broadcast(text, channel, sourcePlayer)
     local ch = channel or ChatSystem.ChannelType.LOCAL
     local msg = ChatSystem.CreateSystemMessage(text, ch)
     
-    local onlinePlayers = getOnlinePlayers()
+    local onlinePlayers = KoniLib.Player.GetOnlinePlayers()
     
     -- SP mode: send directly to player since broadcast excludes sender
-    if not onlinePlayers or onlinePlayers:size() == 0 then
+    if #onlinePlayers == 0 then
         local player = getPlayer()
         if player then
             Server.chatSocket:to(player):emit("message", msg)
@@ -227,8 +228,7 @@ function Module.Broadcast(text, channel, sourcePlayer)
         local x, y, z = sourcePlayer:getX(), sourcePlayer:getY(), sourcePlayer:getZ()
         local range = ChatSystem.Settings.localChatRange or 30
         
-        for i = 0, onlinePlayers:size() - 1 do
-            local player = onlinePlayers:get(i)
+        for _, player in ipairs(onlinePlayers) do
             local px, py, pz = player:getX(), player:getY(), player:getZ()
             
             -- Check Z level (same floor or adjacent)
@@ -252,10 +252,10 @@ end
 ---@param text string
 ---@param minAccessLevel string
 function Module.BroadcastToAccess(text, minAccessLevel)
-    local onlinePlayers = getOnlinePlayers()
+    local onlinePlayers = KoniLib.Player.GetOnlinePlayers()
     
-    -- SP mode: onlinePlayers is empty userdata or nil
-    if not onlinePlayers or onlinePlayers:size() == 0 then
+    -- SP mode: onlinePlayers is empty
+    if #onlinePlayers == 0 then
         local player = getPlayer()
         if player and Module.HasAccess(player, minAccessLevel) then
             Module.Reply(player, text)
@@ -263,8 +263,7 @@ function Module.BroadcastToAccess(text, minAccessLevel)
         return
     end
     
-    for i = 0, onlinePlayers:size() - 1 do
-        local player = onlinePlayers:get(i)
+    for _, player in ipairs(onlinePlayers) do
         if Module.HasAccess(player, minAccessLevel) then
             Module.Reply(player, text)
         end
@@ -286,12 +285,12 @@ function Module.FindPlayer(name)
     
     name = name:lower()
     
-    local onlinePlayers = getOnlinePlayers()
+    local onlinePlayers = KoniLib.Player.GetOnlinePlayers()
     
-    -- SP mode: onlinePlayers is empty userdata or nil
-    if not onlinePlayers or onlinePlayers:size() == 0 then
+    -- SP mode: onlinePlayers is empty
+    if #onlinePlayers == 0 then
         local player = getPlayer()
-        if player and player:getUsername():lower():find(name) then
+        if player and KoniLib.Player.GetUsername(player):lower():find(name) then
             return player
         end
         return nil, "Player not found"
@@ -300,9 +299,8 @@ function Module.FindPlayer(name)
     local exactMatch = nil
     local partialMatches = {}
     
-    for i = 0, onlinePlayers:size() - 1 do
-        local player = onlinePlayers:get(i)
-        local username = player:getUsername():lower()
+    for _, player in ipairs(onlinePlayers) do
+        local username = KoniLib.Player.GetUsername(player):lower()
         
         if username == name then
             exactMatch = player
@@ -357,7 +355,7 @@ function Module.HandleMessageAsCommand(player, text, channel)
     local success, result = Module.Execute(player, text, { channel = channel })
     
     if not success then
-        Module.ReplyError(player, result or "Command failed")
+        Module.ReplyError(player, result or "Command failed", channel)
     end
     
     return true

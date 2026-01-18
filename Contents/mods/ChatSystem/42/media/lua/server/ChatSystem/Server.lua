@@ -5,6 +5,7 @@ if isClient() or not isServer() then
 end
 
 require "ChatSystem/Definitions"
+require "ChatSystem/PlayerUtils"
 local Socket = require("KoniLib/Socket")
 
 -- Load sub-modules (they return tables with functions)
@@ -80,32 +81,31 @@ end)
 
 -- Update player data when faction/safehouse changes
 local function updatePlayerData()
-    local onlinePlayers = getOnlinePlayers()
+    local onlinePlayers = KoniLib.Player.GetOnlinePlayers()
     
-    -- In singleplayer, getOnlinePlayers() returns nil
-    if not onlinePlayers then
+    -- In singleplayer, onlinePlayers is empty
+    if #onlinePlayers == 0 then
         local player = getPlayer()
         if player then
-            local username = player:getUsername()
+            local username = KoniLib.Player.GetUsername(player)
             if Server.playerData[username] then
                 Server.playerData[username].faction = Server.GetPlayerFaction(player)
                 Server.playerData[username].safehouse = Server.GetPlayerSafehouse(player)
-                Server.playerData[username].isAdmin = Server.IsPlayerAdmin(player)
-                Server.playerData[username].isStaff = Server.IsPlayerStaff(player)
+                Server.playerData[username].isAdmin = KoniLib.Player.IsAdmin(player)
+                Server.playerData[username].isStaff = KoniLib.Player.IsStaff(player)
             end
         end
         return
     end
     
-    for i = 0, onlinePlayers:size() - 1 do
-        local player = onlinePlayers:get(i)
-        local username = player:getUsername()
+    for _, player in ipairs(onlinePlayers) do
+        local username = KoniLib.Player.GetUsername(player)
         
         if Server.playerData[username] then
             Server.playerData[username].faction = Server.GetPlayerFaction(player)
             Server.playerData[username].safehouse = Server.GetPlayerSafehouse(player)
-            Server.playerData[username].isAdmin = Server.IsPlayerAdmin(player)
-            Server.playerData[username].isStaff = Server.IsPlayerStaff(player)
+            Server.playerData[username].isAdmin = KoniLib.Player.IsAdmin(player)
+            Server.playerData[username].isStaff = KoniLib.Player.IsStaff(player)
         end
     end
 end
@@ -126,8 +126,8 @@ chatSocket:onServer("message", function(player, data, context, ack)
     local metadata = data.metadata or {}
     
     -- Add player's access level/role to metadata
-    local accessLevel = player:getAccessLevel()
-    if accessLevel and accessLevel ~= "" then
+    local accessLevel = KoniLib.Player.GetAccessLevel(player)
+    if accessLevel and accessLevel ~= "none" then
         metadata.role = accessLevel
     else
         metadata.role = "player"
@@ -155,7 +155,7 @@ chatSocket:onServer("message", function(player, data, context, ack)
             if Commands and Commands.IsCommand and Commands.IsCommand(text) then
                 local success, result = Commands.Server.Execute(player, text, { channel = channel })
                 if not success then
-                    Commands.Server.ReplyError(player, result or "Command failed")
+                    Commands.Server.ReplyError(player, result or "Command failed", channel)
                 end
                 if ack then
                     ack({ success = success, isCommand = true })
@@ -176,17 +176,13 @@ chatSocket:onServer("message", function(player, data, context, ack)
     end
     
     -- Add character name to metadata for roleplay mode
-    if ChatSystem.Settings.roleplayMode then
-        local descriptor = player:getDescriptor()
-        if descriptor then
-            local forename = descriptor:getForename() or ""
-            local surname = descriptor:getSurname() or ""
-            local characterName = forename
-            if surname ~= "" then
-                characterName = characterName .. " " .. surname
-            end
-            if characterName ~= "" then
-                metadata.characterName = characterName
+    -- Only for LOCAL, GLOBAL, PM, FACTION, SAFEHOUSE - NOT for STAFF/ADMIN (need accountability)
+    if ChatSystem.PlayerUtils.IsRoleplayMode() then
+        local useCharName = channel ~= ChatSystem.ChannelType.STAFF and channel ~= ChatSystem.ChannelType.ADMIN
+        if useCharName then
+            local charName = ChatSystem.PlayerUtils.GetCharacterNameFromDescriptor(player:getDescriptor())
+            if charName then
+                metadata.characterName = charName
             end
         end
     end

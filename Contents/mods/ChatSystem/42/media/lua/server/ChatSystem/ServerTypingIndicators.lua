@@ -3,6 +3,7 @@
 -- Returns a module table to be merged into ChatSystem.Server
 
 require "ChatSystem/Definitions"
+require "ChatSystem/PlayerUtils"
 
 local Module = {}
 
@@ -18,7 +19,21 @@ local Module = {}
 function Module.BroadcastTypingIndicator(player, channel, isTyping, target)
     local Server = ChatSystem.Server
     local username = player:getUsername()
-    local data = { username = username, channel = channel, isTyping = isTyping, target = target }
+    
+    -- Use character name for roleplay mode, except for STAFF/ADMIN channels
+    local displayName = username
+    local useCharName = channel ~= ChatSystem.ChannelType.STAFF and channel ~= ChatSystem.ChannelType.ADMIN
+    if useCharName then
+        displayName = ChatSystem.PlayerUtils.GetDisplayName(player)
+    end
+    
+    local data = { 
+        username = username, 
+        channel = channel, 
+        isTyping = isTyping, 
+        target = target,
+        displayName = displayName
+    }
 
     if channel == ChatSystem.ChannelType.PRIVATE and target then
         -- PM typing: only send to the specific target
