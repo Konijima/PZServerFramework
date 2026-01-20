@@ -58,7 +58,34 @@ function ChatUI.OnMouseDown()
 end
 
 function ChatUI.OnTick()
-    -- Reserved for future use (fade timer, etc.)
+    -- Update flash timer for unread tabs
+    local unreadMessages = ChatUI.State:get("unreadMessages") or {}
+    local hasUnread = false
+    for _, count in pairs(unreadMessages) do
+        if count > 0 then
+            hasUnread = true
+            break
+        end
+    end
+    
+    if hasUnread then
+        local flashTimer = ChatUI.State:get("flashTimer") or 0
+        flashTimer = flashTimer + (1 / 60)  -- Assuming ~60 ticks per second
+        
+        if flashTimer >= ChatUI.Constants.FLASH_INTERVAL then
+            flashTimer = 0
+            local currentState = ChatUI.State:get("flashState")
+            ChatUI.State:set("flashState", not currentState)
+        end
+        
+        ChatUI.State:set("flashTimer", flashTimer)
+    else
+        -- Reset flash state when no unread messages
+        if ChatUI.State:get("flashTimer") ~= 0 then
+            ChatUI.State:set("flashTimer", 0)
+            ChatUI.State:set("flashState", false)
+        end
+    end
 end
 
 function ChatUI.HideVanillaChat()

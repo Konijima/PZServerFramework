@@ -83,12 +83,35 @@ local TabButton = ReactiveUI.Component.define({
         -- Use self:bind() to reactively update unread badge
         -- This binding is automatically cleaned up when component is destroyed
         if not props.isActive and props.unreadKey then
+            -- Store unread count for flash effect
+            local unreadCount = 0
+            
             self:bind("unreadMessages", ChatUI.State)
                 :pipe("default", {})
                 :toCallback(function(unreadMessages)
-                    local count = unreadMessages[props.unreadKey] or 0
-                    local badge = Pipe.create("unreadCount")(count)
+                    unreadCount = unreadMessages[props.unreadKey] or 0
+                    local badge = Pipe.create("unreadCount")(unreadCount)
                     btn:setTitle(props.baseText .. badge)
+                end)
+            
+            -- Bind to flash state for visual effect
+            self:bind("flashState", ChatUI.State)
+                :toCallback(function(flashState)
+                    if unreadCount > 0 then
+                        if flashState then
+                            -- Flash on: brighter background with channel color tint
+                            btn.backgroundColor = { r = color.r * 0.4, g = color.g * 0.4, b = color.b * 0.4, a = 0.9 }
+                            btn.textColor = { r = 1, g = 1, b = 1, a = 1 }
+                        else
+                            -- Flash off: normal inactive state
+                            btn.backgroundColor = { r = 0.15, g = 0.15, b = 0.15, a = 0.7 }
+                            btn.textColor = { r = color.r * 0.6, g = color.g * 0.6, b = color.b * 0.6, a = 0.8 }
+                        end
+                    else
+                        -- No unread: normal inactive state
+                        btn.backgroundColor = { r = 0.15, g = 0.15, b = 0.15, a = 0.7 }
+                        btn.textColor = { r = color.r * 0.6, g = color.g * 0.6, b = color.b * 0.6, a = 0.8 }
+                    end
                 end)
         end
         

@@ -73,12 +73,14 @@ function Client.Connect()
             end
         end)
         
-        -- Show welcome message with keybinding
-        -- Use current channel so it appears in whatever channel is active
-        local chatKey = Keyboard.getKeyName(getCore():getKey("Toggle chat"))
-        local currentChannel = Client.currentChannel or ChatSystem.ChannelType.GLOBAL
-        local welcomeMsg = ChatSystem.CreateSystemMessage("Press '" .. chatKey .. "' to open chat. Use ALL CAPS or start with ! to yell. Type /help for commands.", currentChannel)
-        Client.OnMessageReceived(welcomeMsg)
+        -- Show welcome message with keybinding (only on first connect, not reconnect)
+        if not Client._hasShownWelcome then
+            Client._hasShownWelcome = true
+            local chatKey = Keyboard.getKeyName(getCore():getKey("Toggle chat"))
+            local currentChannel = Client.currentChannel or ChatSystem.ChannelType.GLOBAL
+            local welcomeMsg = ChatSystem.CreateSystemMessage("Press '" .. chatKey .. "' to open chat. Use ALL CAPS or start with ! to yell. Type /help for commands.", currentChannel)
+            Client.OnMessageReceived(welcomeMsg)
+        end
     end)
     
     Client.socket:on("disconnect", function()
@@ -140,6 +142,29 @@ function Client.Connect()
             end
         end
     end)
+end
+
+--- Force reconnect to the chat server (for respawn scenarios)
+function Client.Reconnect()
+    print("[ChatSystem] Client: Forcing reconnect after respawn...")
+    
+    -- Reset connection state
+    Client.isConnected = false
+    
+    -- Clear typing state
+    Client.isTyping = false
+    Client.typingChannel = nil
+    Client.typingTarget = nil
+    Client.lastTypingTime = 0
+    
+    -- Force socket reconnect
+    if Client.socket and Client.socket.reconnect then
+        Client.socket:reconnect()
+    elseif Client.socket then
+        -- Fallback: reset socket state and reconnect
+        Client.socket.connected = false
+        Client.socket:connect()
+    end
 end
 
 -- ==========================================================
@@ -295,7 +320,10 @@ end
 -- ==========================================================
 
 --- Handle remote player join/respawn
-local function OnRemotePlayerInit(username, isRespawn)
+---@param username string The player's username
+---@param isRespawn boolean Whether this is a respawn (true) or fresh join (false)
+---@param displayName string|nil The player's display name (character name), provided by server
+local function OnRemotePlayerInit(username, isRespawn, displayName)
     if not username then return end
     
     -- Only show messages if chat is fully connected
@@ -305,14 +333,17 @@ local function OnRemotePlayerInit(username, isRespawn)
     local myUsername = getPlayer() and getPlayer():getUsername() or ""
     if username == myUsername then return end
     
-    -- Get display name (character name if roleplay mode)
-    local displayName = ChatSystem.PlayerUtils.GetDisplayNameByUsername(username)
+    -- Use displayName only if roleplay mode is enabled, otherwise use username
+    local nameToShow = username
+    if ChatSystem.PlayerUtils.IsRoleplayMode() and displayName then
+        nameToShow = displayName
+    end
     
     local text
     if isRespawn then
-        text = displayName .. " has respawned."
+        text = nameToShow .. " has respawned."
     else
-        text = displayName .. " has joined the server."
+        text = nameToShow .. " has joined the server."
     end
     
     -- Use current channel so message only appears in player's active channel view
@@ -334,21 +365,26 @@ local function OnRemotePlayerInit(username, isRespawn)
 end
 
 --- Handle remote player quit
-local function OnRemotePlayerQuit(username)
+---@param username string The player's username
+---@param displayName string|nil The player's display name (character name), provided by server
+local function OnRemotePlayerQuit(username, displayName)
     if not username then return end
     
     -- Only show messages if chat is fully connected
     if not Client.isConnected then return end
     
-    -- Get display name BEFORE clearing indicators (player may still be accessible)
-    local displayName = ChatSystem.PlayerUtils.GetDisplayNameByUsername(username)
+    -- Use displayName only if roleplay mode is enabled, otherwise use username
+    local nameToShow = username
+    if ChatSystem.PlayerUtils.IsRoleplayMode() and displayName then
+        nameToShow = displayName
+    end
     
     -- Clear any typing indicators for this player
     Client.ClearTypingIndicator(username)
     
     -- Use current channel so message only appears in player's active channel view
     local currentChannel = Client.currentChannel or ChatSystem.ChannelType.GLOBAL
-    local msg = ChatSystem.CreateSystemMessage(displayName .. " has left the server.", currentChannel)
+    local msg = ChatSystem.CreateSystemMessage(nameToShow .. " has left the server.", currentChannel)
     msg.color = { r = 0.6, g = 0.6, b = 0.6 } -- Gray
     
     -- Store message
@@ -365,7 +401,7 @@ local function OnRemotePlayerQuit(username)
     
     -- If we have a conversation with this player, add a notification message
     if Client.conversations[username] then
-        local pmNotification = ChatSystem.CreateSystemMessage(displayName .. " is no longer available.", ChatSystem.ChannelType.PRIVATE)
+        local pmNotification = ChatSystem.CreateSystemMessage(nameToShow .. " is no longer available.", ChatSystem.ChannelType.PRIVATE)
         pmNotification.color = { r = 1, g = 0.6, b = 0.3 } -- Orange
         pmNotification.metadata = { from = username, to = getPlayer():getUsername() }
         
@@ -385,21 +421,29 @@ local function OnRemotePlayerQuit(username)
 end
 
 --- Handle remote player death
-local function OnRemotePlayerDeath(username, x, y, z)
+---@param username string The player's username
+---@param x number Player's X coordinate at death
+---@param y number Player's Y coordinate at death
+---@param z number Player's Z coordinate at death
+---@param displayName string|nil The player's display name (character name), provided by server
+local function OnRemotePlayerDeath(username, x, y, z, displayName)
     if not username then return end
     
     -- Only show messages if chat is fully connected
     if not Client.isConnected then return end
     
-    -- Get display name (character name if roleplay mode)
-    local displayName = ChatSystem.PlayerUtils.GetDisplayNameByUsername(username)
+    -- Use displayName only if roleplay mode is enabled, otherwise use username
+    local nameToShow = username
+    if ChatSystem.PlayerUtils.IsRoleplayMode() and displayName then
+        nameToShow = displayName
+    end
     
     -- Clear any typing indicators for this player
     Client.ClearTypingIndicator(username)
     
     -- Use current channel so message only appears in player's active channel view
     local currentChannel = Client.currentChannel or ChatSystem.ChannelType.GLOBAL
-    local msg = ChatSystem.CreateSystemMessage(displayName .. " has died.", currentChannel)
+    local msg = ChatSystem.CreateSystemMessage(nameToShow .. " has died.", currentChannel)
     msg.color = { r = 1, g = 0.3, b = 0.3 } -- Red
     
     -- Store message
@@ -416,7 +460,38 @@ end
 -- Initialization
 -- ==========================================================
 
+--- Handle local player init (join/respawn)
+--- Called on both initial join and respawn, but we use _hasInitialized flag to detect respawn
+---@param playerIndex number
+---@param player IsoPlayer The local player
+---@param isRespawn boolean Whether this is a respawn (from server, not reliable on client)
+local function OnPlayerInit(playerIndex, player, isRespawn)
+    -- On client, isRespawn is always false (see CustomEventsClient.lua)
+    -- Instead, detect respawn by checking if we already initialized
+    if not Client._hasInitialized then
+        -- First join - Connect() will be called by OnGameStart
+        Client._hasInitialized = true
+        return
+    end
+    
+    -- This is a respawn (player was already initialized before)
+    -- Delay reconnect slightly to ensure player object is fully ready
+    print("[ChatSystem] Client: Player respawned, scheduling reconnect...")
+    
+    local tickCount = 0
+    local function delayedReconnect()
+        tickCount = tickCount + 1
+        if tickCount > 5 then  -- Wait ~5 ticks
+            Events.OnTick.Remove(delayedReconnect)
+            print("[ChatSystem] Client: Reconnecting to chat server after respawn...")
+            Client.Reconnect()
+        end
+    end
+    Events.OnTick.Add(delayedReconnect)
+end
+
 local function OnGameStart()
+    Client._hasInitialized = true  -- Mark as initialized
     Client.Connect()
     
     -- Initialize sub-modules
@@ -437,6 +512,12 @@ local function OnGameStart()
         if KoniLib.Events.OnRemotePlayerDeath then
             KoniLib.Events.OnRemotePlayerDeath:Add(OnRemotePlayerDeath)
             print("[ChatSystem] Client: Registered OnRemotePlayerDeath handler")
+        end
+        
+        -- Register for local player init (for respawn handling)
+        if KoniLib.Events.OnPlayerInit then
+            KoniLib.Events.OnPlayerInit:Add(OnPlayerInit)
+            print("[ChatSystem] Client: Registered OnPlayerInit handler for respawn")
         end
     else
         print("[ChatSystem] Client: WARNING - KoniLib.Events not available!")

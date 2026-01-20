@@ -66,6 +66,23 @@ function SocketClient:connect(auth)
     })
 end
 
+---Force reconnect to the server namespace (for respawn scenarios)
+---@param auth? table Authentication data to send
+function SocketClient:reconnect(auth)
+    Socket.Log("Forcing reconnect to: " .. self.namespace)
+    
+    -- Reset connection state
+    self.connected = false
+    self.rooms = {}
+    
+    -- Reconnect with auth
+    self.auth = auth or self.auth or {}
+    MP.Send(getPlayer(), Socket.MODULE, Socket.CMD.CONNECT, {
+        ns = self.namespace,
+        auth = self.auth
+    })
+end
+
 ---Disconnect from the server namespace
 function SocketClient:disconnect()
     if not self.connected then return end

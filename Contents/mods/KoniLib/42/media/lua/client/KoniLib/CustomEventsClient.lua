@@ -65,13 +65,14 @@ Events.OnDisconnect.Add(resetClientState)
 -- Handle Remote Player Init (Broadcasted by Server)
 MP.Register("KoniLib", "PlayerInit", function(player, args)
     local username = args.username
+    local displayName = args.displayName or username
     local isRespawn = args.isRespawn
     
     if username then
         if KoniLib.Events and KoniLib.Events.OnRemotePlayerInit then
-            KoniLib.Events.OnRemotePlayerInit:Trigger(username, isRespawn)
+            KoniLib.Events.OnRemotePlayerInit:Trigger(username, isRespawn, displayName)
         else
-            triggerEvent("OnRemotePlayerInit", username, isRespawn)
+            triggerEvent("OnRemotePlayerInit", username, isRespawn, displayName)
         end
         Log.Print("Events", "Remote player init: " .. username .. (isRespawn and " (Respawn)" or " (Join)"))
     end
@@ -80,14 +81,15 @@ end)
 -- Handle Remote Player Death
 MP.Register("KoniLib", "PlayerDeath", function(player, args)
     local username = args.username
+    local displayName = args.displayName or username
     local x = args.x
     local y = args.y
     local z = args.z
     
     if KoniLib.Events and KoniLib.Events.OnRemotePlayerDeath then
-        KoniLib.Events.OnRemotePlayerDeath:Trigger(username, x, y, z)
+        KoniLib.Events.OnRemotePlayerDeath:Trigger(username, x, y, z, displayName)
     else
-        triggerEvent("OnRemotePlayerDeath", username, x, y, z)
+        triggerEvent("OnRemotePlayerDeath", username, x, y, z, displayName)
     end
     Log.Print("Events", "Remote player death: " .. tostring(username))
 end)
@@ -95,11 +97,12 @@ end)
 -- Handle Remote Player Quit
 MP.Register("KoniLib", "PlayerQuit", function(player, args)
     local username = args.username
+    local displayName = args.displayName or username
     
     if KoniLib.Events and KoniLib.Events.OnRemotePlayerQuit then
-        KoniLib.Events.OnRemotePlayerQuit:Trigger(username)
+        KoniLib.Events.OnRemotePlayerQuit:Trigger(username, displayName)
     else
-        triggerEvent("OnRemotePlayerQuit", username)
+        triggerEvent("OnRemotePlayerQuit", username, displayName)
     end
     Log.Print("Events", "Remote player quit: " .. tostring(username))
 end)
